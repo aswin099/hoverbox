@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.shakeEnabled) private var shakeEnabled = true
     @AppStorage(Prefs.sensitivity) private var sensitivity = ShakeDetector.Sensitivity.medium.rawValue
     @AppStorage(Prefs.keepAfterDragOut) private var keepAfterDragOut = false
+    @AppStorage(Prefs.backgroundOpacity) private var backgroundOpacity = Prefs.defaultBackgroundOpacity
     @State private var excluded = Prefs.excludedBundleIDs
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -21,6 +22,25 @@ struct SettingsView: View {
                 }
                 .disabled(!shakeEnabled)
                 KeyboardShortcuts.Recorder("New shelf shortcut:", name: .newShelf)
+            }
+
+            Section {
+                LabeledContent("Shelf background") {
+                    HStack(spacing: 8) {
+                        Text("Glass").font(.caption).foregroundStyle(.secondary)
+                        Slider(value: $backgroundOpacity, in: 0...1)
+                            .frame(width: 180)
+                            .accessibilityLabel("Shelf background, from glass to solid")
+                            .accessibilityValue("\(Int(backgroundOpacity * 100)) percent solid")
+                        Text("Solid").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Look")
+            } footer: {
+                Text("Changes every open shelf as you drag. Thumbnails and text always stay fully visible.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
@@ -76,7 +96,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 520)
+        .frame(width: 480, height: 600)
         .onAppear { NSApp.activate(ignoringOtherApps: true) }
     }
 

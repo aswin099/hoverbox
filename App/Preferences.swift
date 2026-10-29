@@ -12,6 +12,9 @@ enum Prefs {
     static let sensitivity = "shakeSensitivity"
     static let excludedApps = "excludedApps"
     static let keepAfterDragOut = "keepAfterDragOut"
+    /// How solid the shelf background is: 0 is clear glass, 1 is the opaque window colour.
+    static let backgroundOpacity = "shelfBackgroundOpacity"
+    static let defaultBackgroundOpacity = 0.55
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -19,6 +22,7 @@ enum Prefs {
             sensitivity: ShakeDetector.Sensitivity.medium.rawValue,
             excludedApps: [String](),
             keepAfterDragOut: false,
+            backgroundOpacity: defaultBackgroundOpacity,
         ])
     }
 

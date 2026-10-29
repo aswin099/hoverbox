@@ -8,6 +8,7 @@ import SwiftUI
 struct ShelfView: View {
     @ObservedObject var controller: ShelfController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(Prefs.backgroundOpacity) private var backgroundOpacity = Prefs.defaultBackgroundOpacity
 
     static let space = "shelf"
     /// How long the card takes to open or close; the window shrinks after this.
@@ -35,6 +36,16 @@ struct ShelfView: View {
             }
         }
         .frame(width: card.width, height: card.height, alignment: .top)
+        // Grabber: shows the shelf can be moved; the whole empty card is the handle.
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(Color.primary.opacity(0.22))
+                .frame(width: 34, height: 5)
+                .padding(.top, 7)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .background(WindowDragHandle(onDoubleClick: { controller.promptForName() }))
         .overlay(alignment: .bottom) {
             if controller.isDropTargeted {
                 InstantActionStrip(controller: controller, compact: !expanded)
@@ -44,7 +55,9 @@ struct ShelfView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: controller.isDropTargeted)
         .coordinateSpace(name: ShelfView.space)
         .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
-        .background(.regularMaterial, in: shape)
+        // Glass at 0, solid at 1 (Settings ▸ Look).
+        .background(Color(nsColor: .windowBackgroundColor).opacity(backgroundOpacity), in: shape)
+        .background(.ultraThinMaterial, in: shape)
         .overlay(
             shape.strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.14),
                                lineWidth: controller.isDropTargeted ? 2 : 0.5)
@@ -100,6 +113,8 @@ struct CompactShelf: View {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(Color.accentColor)
+                        .padding(.top, 14)
+                        .allowsHitTesting(false)
                         .accessibilityLabel("Pinned")
                 }
                 Spacer()
@@ -231,8 +246,7 @@ struct ExpandedShelf: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            .onTapGesture(count: 2) { controller.promptForName() }
-            .help("Double-click to name this shelf")
+            .allowsHitTesting(false)
             Spacer(minLength: 6)
             layoutToggle
             CircleButton(symbol: "chevron.down", label: "Shelf options and actions") { controller.showActionsMenu() }

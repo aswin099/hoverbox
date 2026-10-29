@@ -1,5 +1,6 @@
 import AppKit
 import Quartz
+import SwiftUI
 
 /// Floating, non-activating window for one shelf: it appears over every app
 /// and Space without taking focus from the app you're dragging from.
@@ -86,5 +87,31 @@ final class ShelfPanel: NSPanel {
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
+    }
+}
+
+/// Lets the user move the shelf by dragging any empty part of the card. The card is
+/// almost all controls and thumbnails, so the window background alone isn't enough.
+struct WindowDragHandle: NSViewRepresentable {
+    var onDoubleClick: () -> Void = {}
+
+    func makeNSView(context: Context) -> WindowDragHandleView { WindowDragHandleView() }
+
+    func updateNSView(_ view: WindowDragHandleView, context: Context) {
+        view.onDoubleClick = onDoubleClick
+    }
+}
+
+final class WindowDragHandleView: NSView {
+    var onDoubleClick: () -> Void = {}
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            onDoubleClick()
+        } else {
+            window?.performDrag(with: event)
+        }
     }
 }
