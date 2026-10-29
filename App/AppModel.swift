@@ -49,7 +49,7 @@ final class AppModel: ObservableObject {
 
     @discardableResult
     func newShelf(at point: NSPoint, items: [ShelfItem] = []) -> ShelfController {
-        let controller = ShelfController(shelf: Shelf(items: items), model: self)
+        let controller = ShelfController(shelf: Shelf(items: items, color: Prefs.newShelfColor), model: self)
         shelves.append(controller)
         controller.show(centeredOn: point)
         return controller

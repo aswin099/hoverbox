@@ -18,6 +18,8 @@ enum Prefs {
     static let favouritesKey = "favourites"
     static let watchedFoldersKey = "watchedFolders"
     static let screenshotsKey = "screenshotsToShelf"
+    /// Colour new shelves start with ("" for none).
+    static let newShelfColorKey = "newShelfColor"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -47,6 +49,10 @@ enum Prefs {
     static var watchedFolders: [String] {
         get { UserDefaults.standard.stringArray(forKey: watchedFoldersKey) ?? [] }
         set { UserDefaults.standard.set(newValue, forKey: watchedFoldersKey) }
+    }
+
+    static var newShelfColor: ShelfColor? {
+        ShelfColor(rawValue: UserDefaults.standard.string(forKey: newShelfColorKey) ?? "")
     }
 
     static var screenshotsToShelf: Bool {

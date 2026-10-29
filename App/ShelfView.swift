@@ -17,12 +17,19 @@ struct ShelfView: View {
     private var shelf: Shelf { controller.shelf }
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 22, style: .continuous) }
 
+    /// The shelf's colour, or the system accent when it has none. Used for selection,
+    /// the drop outline and drop targets, so each coloured shelf looks like itself.
+    private var accent: Color { shelf.color.map { Color(nsColor: $0.nsColor) } ?? .accentColor }
+
     var body: some View {
-        if let edge = controller.dockedEdge {
-            DockTab(controller: controller, edge: edge, solidity: backgroundOpacity)
-        } else {
-            card
+        Group {
+            if let edge = controller.dockedEdge {
+                DockTab(controller: controller, edge: edge, solidity: backgroundOpacity)
+            } else {
+                card
+            }
         }
+        .environment(\.shelfAccent, accent)
     }
 
     @ViewBuilder private var card: some View {
@@ -48,7 +55,7 @@ struct ShelfView: View {
         .overlay(alignment: .top) {
             Capsule()
                 .fill(shelf.color.map { Color(nsColor: $0.nsColor) } ?? Color.primary.opacity(0.22))
-                .frame(width: 34, height: shelf.color == nil ? 5 : 6)
+                .frame(width: 46, height: shelf.color == nil ? 3.5 : 4)
                 .padding(.top, 7)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
@@ -67,7 +74,7 @@ struct ShelfView: View {
         // Glass at 0, solid at 1 (Settings ▸ Look).
         .background(ShelfBackground(solidity: backgroundOpacity).clipShape(shape))
         .overlay(
-            shape.strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.14),
+            shape.strokeBorder(controller.isDropTargeted ? accent : Color.primary.opacity(0.14),
                                lineWidth: controller.isDropTargeted ? 2 : 0.5)
         )
         .clipShape(shape)
@@ -99,7 +106,7 @@ struct DockTab: View {
                                            topTrailingRadius: edge == .left ? 12 : 0, style: .continuous)
         VStack(spacing: 8) {
             Capsule()
-                .fill(controller.shelf.color.map { Color(nsColor: $0.nsColor) } ?? Color.accentColor)
+                .fill(controller.shelf.color.map { Color(nsColor: $0.nsColor) } ?? Color.accentColor.opacity(0.8))
                 .frame(width: 4, height: 22)
             Text("\(controller.shelf.items.count)")
                 .font(.system(size: 12, weight: .bold).monospacedDigit())
@@ -145,6 +152,7 @@ struct CircleButton: View {
 
 struct CompactShelf: View {
     @ObservedObject var controller: ShelfController
+    @Environment(\.shelfAccent) private var shelfAccent
     private var shelf: Shelf { controller.shelf }
 
     var body: some View {
@@ -155,7 +163,7 @@ struct CompactShelf: View {
                 if shelf.isPinned {
                     Image(systemName: "pin.fill")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(shelfAccent)
                         .padding(.top, 14)
                         .allowsHitTesting(false)
                         .accessibilityLabel("Pinned")
@@ -180,7 +188,7 @@ struct CompactShelf: View {
         VStack(spacing: 6) {
             Image(systemName: "tray.and.arrow.down")
                 .font(.system(size: 26, weight: .light))
-                .foregroundStyle(controller.isDropTargeted ? Color.accentColor : .secondary)
+                .foregroundStyle(controller.isDropTargeted ? shelfAccent : .secondary)
             Text("Drop here")
                 .font(.system(size: 13, weight: .medium))
             if let status = controller.status {
@@ -263,6 +271,7 @@ struct CompactShelf: View {
 
 struct ExpandedShelf: View {
     @ObservedObject var controller: ShelfController
+    @Environment(\.shelfAccent) private var shelfAccent
     @State private var totalSize = ""
     private var shelf: Shelf { controller.shelf }
 
@@ -358,7 +367,7 @@ struct ExpandedShelf: View {
 
     private func insertionLine(vertical: Bool, visible: Bool) -> some View {
         Capsule()
-            .fill(Color.accentColor)
+            .fill(shelfAccent)
             .frame(width: vertical ? 3 : nil, height: vertical ? nil : 2)
             .padding(vertical ? .vertical : .horizontal, 6)
             .offset(x: vertical ? -4 : 0, y: vertical ? 0 : -2)
@@ -405,6 +414,7 @@ struct DraggableItem: ViewModifier {
 }
 
 struct ItemTile: View {
+    @Environment(\.shelfAccent) private var shelfAccent
     let item: ShelfItem
     let isSelected: Bool
     let isMissing: Bool
@@ -433,7 +443,7 @@ struct ItemTile: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(isSelected ? Color.accentColor.opacity(0.2) : .clear,
+        .background(isSelected ? shelfAccent.opacity(0.2) : .clear,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -496,6 +506,7 @@ struct RowFramesKey: PreferenceKey {
 }
 
 struct ItemRow: View {
+    @Environment(\.shelfAccent) private var shelfAccent
     let item: ShelfItem
     let isSelected: Bool
     let isMissing: Bool
@@ -521,7 +532,7 @@ struct ItemRow: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 32)
-        .background(isSelected ? Color.accentColor.opacity(0.18) : .clear,
+        .background(isSelected ? shelfAccent.opacity(0.18) : .clear,
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -572,8 +583,12 @@ struct ItemIcon: View {
 /// Drop targets for Instant Actions, shown along the bottom of a shelf during a drag.
 struct InstantActionStrip: View {
     @ObservedObject var controller: ShelfController
+    @Environment(\.shelfAccent) private var shelfAccent
     /// Smaller targets for the compact shelf.
     var compact = false
+
+    /// Text on a hovered target: dark on light colours (yellow, mint), white otherwise.
+    private var onAccent: Color { controller.shelf.color?.isLight == true ? .black : .white }
 
     var body: some View {
         let favourites = Array(Favourite.all.prefix(compact ? 4 : 6))
@@ -585,7 +600,7 @@ struct InstantActionStrip: View {
                             Image(systemName: action.symbol).font(.system(size: 15, weight: .medium))
                             Text(action.title).font(.system(size: compact ? 9 : 10, weight: .medium))
                         }
-                        .foregroundStyle(hovered ? Color.white : Color.primary)
+                        .foregroundStyle(hovered ? onAccent : Color.primary)
                     }
                 }
             }
@@ -602,7 +617,7 @@ struct InstantActionStrip: View {
                                     .lineLimit(1)
                                     .truncationMode(.middle)
                             }
-                            .foregroundStyle(hovered ? Color.white : Color.primary)
+                            .foregroundStyle(hovered ? onAccent : Color.primary)
                             .padding(.horizontal, 2)
                         }
                     }
@@ -620,7 +635,7 @@ struct InstantActionStrip: View {
         return label(hovered)
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 46 : 50)
-            .background(hovered ? Color.accentColor : Color.primary.opacity(0.07),
+            .background(hovered ? shelfAccent : Color.primary.opacity(0.07),
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(DropZone(id: id, controller: controller, onDrop: onDrop))
             .help(help)
@@ -676,5 +691,17 @@ final class DropZoneView: NSView {
     override func draggingEnded(_ sender: NSDraggingInfo) {
         controller?.hoveredZone = nil
         controller?.isDropTargeted = false
+    }
+}
+
+private struct ShelfAccentKey: EnvironmentKey {
+    static let defaultValue = Color.accentColor
+}
+
+extension EnvironmentValues {
+    /// The colour a shelf uses for highlights: its own colour, or the system accent.
+    var shelfAccent: Color {
+        get { self[ShelfAccentKey.self] }
+        set { self[ShelfAccentKey.self] = newValue }
     }
 }

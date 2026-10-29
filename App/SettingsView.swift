@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.sensitivity) private var sensitivity = ShakeDetector.Sensitivity.medium.rawValue
     @AppStorage(Prefs.keepAfterDragOut) private var keepAfterDragOut = false
     @AppStorage(Prefs.backgroundOpacity) private var backgroundOpacity = Prefs.defaultBackgroundOpacity
+    @AppStorage(Prefs.newShelfColorKey) private var newShelfColor = ""
     @State private var excluded = Prefs.excludedBundleIDs
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var favourites = Prefs.favourites
@@ -38,10 +39,17 @@ struct SettingsView: View {
                         Text("Solid").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                Picker("Colour for new shelves", selection: $newShelfColor) {
+                    Text("None").tag("")
+                    ForEach(ShelfColor.allCases, id: \.rawValue) { option in
+                        Label { Text(option.displayName) } icon: { Image(nsImage: option.swatch()) }
+                            .tag(option.rawValue)
+                    }
+                }
             } header: {
                 Text("Look")
             } footer: {
-                Text("Changes every open shelf as you drag. Thumbnails and text always stay fully visible.")
+                Text("The background changes every open shelf as you drag; thumbnails and text always stay fully visible. A shelf's colour tints its grabber, selection and drop targets; change one shelf's colour from its chevron menu.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

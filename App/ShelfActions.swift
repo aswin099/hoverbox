@@ -418,6 +418,12 @@ extension ShelfColor {
                 blue: CGFloat(rgb & 0xFF) / 255, alpha: 1)
     }
 
+    /// True for colours that need dark text on top.
+    var isLight: Bool {
+        let r = Double((rgb >> 16) & 0xFF) / 255, g = Double((rgb >> 8) & 0xFF) / 255, b = Double(rgb & 0xFF) / 255
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.6
+    }
+
     /// A small round swatch for menus.
     func swatch(size: CGFloat = 12) -> NSImage {
         NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
