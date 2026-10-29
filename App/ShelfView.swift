@@ -18,6 +18,14 @@ struct ShelfView: View {
     private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 22, style: .continuous) }
 
     var body: some View {
+        if let edge = controller.dockedEdge {
+            DockTab(controller: controller, edge: edge, solidity: backgroundOpacity)
+        } else {
+            card
+        }
+    }
+
+    @ViewBuilder private var card: some View {
         let expanded = controller.isExpanded
         let card = expanded ? ShelfPanel.expandedCard : ShelfPanel.compactCard
         ZStack(alignment: .top) {
@@ -39,13 +47,14 @@ struct ShelfView: View {
         // Grabber: shows the shelf can be moved; the whole empty card is the handle.
         .overlay(alignment: .top) {
             Capsule()
-                .fill(Color.primary.opacity(0.22))
-                .frame(width: 34, height: 5)
+                .fill(shelf.color.map { Color(nsColor: $0.nsColor) } ?? Color.primary.opacity(0.22))
+                .frame(width: 34, height: shelf.color == nil ? 5 : 6)
                 .padding(.top, 7)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
-        .background(WindowDragHandle(onDoubleClick: { controller.promptForName() }))
+        .background(WindowDragHandle(onDoubleClick: { controller.promptForName() },
+                                     onDragEnded: { controller.windowDragEnded() }))
         .overlay(alignment: .bottom) {
             if controller.isDropTargeted {
                 InstantActionStrip(controller: controller, compact: !expanded)
@@ -73,6 +82,41 @@ struct ShelfView: View {
 
     private func fade(_ duration: Double, delay: Double = 0) -> Animation? {
         reduceMotion ? nil : .easeOut(duration: duration).delay(delay)
+    }
+}
+
+/// A shelf tucked against a screen edge: its colour, how many items, and an arrow.
+/// Click it, or drag something over it, to bring the shelf back.
+struct DockTab: View {
+    @ObservedObject var controller: ShelfController
+    let edge: DockEdge
+    let solidity: Double
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: edge == .right ? 12 : 0,
+                                           bottomLeadingRadius: edge == .right ? 12 : 0,
+                                           bottomTrailingRadius: edge == .left ? 12 : 0,
+                                           topTrailingRadius: edge == .left ? 12 : 0, style: .continuous)
+        VStack(spacing: 8) {
+            Capsule()
+                .fill(controller.shelf.color.map { Color(nsColor: $0.nsColor) } ?? Color.accentColor)
+                .frame(width: 4, height: 22)
+            Text("\(controller.shelf.items.count)")
+                .font(.system(size: 12, weight: .bold).monospacedDigit())
+            Image(systemName: edge == .left ? "chevron.right" : "chevron.left")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(ShelfBackground(solidity: solidity).clipShape(shape))
+        .overlay(shape.strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
+        .contentShape(shape)
+        .onTapGesture { controller.undock() }
+        .help("Click to bring the shelf back. Drag files over it to add them.")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Docked shelf: \(controller.shelf.title)")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { controller.undock() }
     }
 }
 
@@ -532,76 +576,105 @@ struct InstantActionStrip: View {
     var compact = false
 
     var body: some View {
-        HStack(spacing: compact ? 4 : 6) {
-            ForEach(InstantAction.allCases) { action in
-                let isHovered = controller.hoveredInstant == action
-                VStack(spacing: 3) {
-                    Image(systemName: action.symbol).font(.system(size: 15, weight: .medium))
-                    Text(action.title).font(.system(size: compact ? 9 : 10, weight: .medium))
+        let favourites = Array(Favourite.all.prefix(compact ? 4 : 6))
+        VStack(spacing: compact ? 4 : 6) {
+            HStack(spacing: compact ? 4 : 6) {
+                ForEach(InstantAction.allCases) { action in
+                    zone(id: action.title, help: action.help, onDrop: { controller.runInstant(action, on: $0) }) { hovered in
+                        VStack(spacing: 3) {
+                            Image(systemName: action.symbol).font(.system(size: 15, weight: .medium))
+                            Text(action.title).font(.system(size: compact ? 9 : 10, weight: .medium))
+                        }
+                        .foregroundStyle(hovered ? Color.white : Color.primary)
+                    }
                 }
-                .foregroundStyle(isHovered ? Color.white : Color.primary)
-                .frame(maxWidth: .infinity)
-                .frame(height: compact ? 46 : 50)
-                .background(isHovered ? Color.accentColor : Color.primary.opacity(0.07),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(InstantDropZone(action: action, controller: controller))
-                .help(action.help)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(action.help)
+            }
+            if !favourites.isEmpty {
+                HStack(spacing: compact ? 4 : 6) {
+                    ForEach(favourites) { favourite in
+                        let help = favourite.isApp ? "Drop to open in \(favourite.name)"
+                            : "Drop to copy to \(favourite.name) (hold ⌘ to move)"
+                        zone(id: favourite.id, help: help, onDrop: { controller.drop($0, on: favourite) }) { hovered in
+                            VStack(spacing: 2) {
+                                Image(nsImage: favourite.icon(size: 22)).resizable().frame(width: 22, height: 22)
+                                Text(favourite.name)
+                                    .font(.system(size: compact ? 9 : 10, weight: .medium))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .foregroundStyle(hovered ? Color.white : Color.primary)
+                            .padding(.horizontal, 2)
+                        }
+                    }
+                }
             }
         }
         .padding(8)
         .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(6)
     }
+
+    private func zone(id: String, help: String, onDrop: @escaping ([ShelfItem]) -> Void,
+                      @ViewBuilder label: (Bool) -> some View) -> some View {
+        let hovered = controller.hoveredZone == id
+        return label(hovered)
+            .frame(maxWidth: .infinity)
+            .frame(height: compact ? 46 : 50)
+            .background(hovered ? Color.accentColor : Color.primary.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(DropZone(id: id, controller: controller, onDrop: onDrop))
+            .help(help)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(help)
+    }
 }
 
-/// One Instant Action target. Plain AppKit so it can take drops directly.
-struct InstantDropZone: NSViewRepresentable {
-    let action: InstantAction
+/// One drop target in the strip. Plain AppKit so it can take drops directly.
+struct DropZone: NSViewRepresentable {
+    let id: String
     let controller: ShelfController
+    let onDrop: ([ShelfItem]) -> Void
 
-    func makeNSView(context: Context) -> InstantDropZoneView {
-        let view = InstantDropZoneView()
+    func makeNSView(context: Context) -> DropZoneView {
+        let view = DropZoneView()
         view.registerForDraggedTypes(DropReader.acceptedTypes)
         return view
     }
 
-    func updateNSView(_ view: InstantDropZoneView, context: Context) {
-        view.action = action
+    func updateNSView(_ view: DropZoneView, context: Context) {
+        view.id = id
         view.controller = controller
+        view.onDrop = onDrop
     }
 }
 
-final class InstantDropZoneView: NSView {
-    var action: InstantAction = .zip
+final class DropZoneView: NSView {
+    var id = ""
     weak var controller: ShelfController?
+    var onDrop: ([ShelfItem]) -> Void = { _ in }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         // Moving from the shelf onto a zone ends the shelf's own drag session; keep the strip up.
         controller?.isDropTargeted = true
-        controller?.hoveredInstant = action
+        controller?.hoveredZone = id
         return .copy
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
         // If the pointer goes back onto the shelf, the shelf's draggingEntered turns this on again.
-        if controller?.hoveredInstant == action { controller?.hoveredInstant = nil }
+        if controller?.hoveredZone == id { controller?.hoveredZone = nil }
         controller?.isDropTargeted = false
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        guard let controller else { return false }
-        let action = self.action
-        controller.hoveredInstant = nil
-        controller.isDropTargeted = false
-        return DropReader.read(sender.draggingPasteboard) { [weak controller] items in
-            controller?.runInstant(action, on: items)
-        }
+        controller?.hoveredZone = nil
+        controller?.isDropTargeted = false
+        let onDrop = self.onDrop
+        return DropReader.read(sender.draggingPasteboard) { onDrop($0) }
     }
 
     override func draggingEnded(_ sender: NSDraggingInfo) {
-        controller?.hoveredInstant = nil
+        controller?.hoveredZone = nil
         controller?.isDropTargeted = false
     }
 }

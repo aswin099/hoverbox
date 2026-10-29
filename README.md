@@ -2,7 +2,7 @@
 
 A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
 
-**Status: preview 0.2.0** (Phase 1 done, Phase 2 actions in progress). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
+**Status: preview 0.3.0** (Phase 1 done, most of Phase 2 done). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 ## What works in the preview
 - **Two faces:** a shelf appears compact, as a pile of thumbnails with its name. Drag the pile to take everything; click it or the name to grow it into the full view, a grid or list with names, sizes and PDF page counts. The chevron opens shelf options (pin, name, show all) and the actions.
@@ -13,6 +13,11 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 - **After dragging out**, items leave the shelf and an empty shelf closes. Hold Shift as you drop, pin the shelf, or turn on "Keep items" in Settings to keep them.
 - **Drop onto the menu bar icon** to get a new shelf just below it.
 - **Multiple shelves.** Move one by dragging any empty part of it (the grabber bar at the top shows where); double-click an empty part to name it. Drag items within a shelf to reorder them; drag them onto another shelf to move them there.
+- **Colours:** give a shelf a colour from the chevron menu; it tints the grabber and shows in the menu bar list.
+- **Dock to an edge:** push a shelf against the left or right edge of the screen and it tucks away as a slim tab. Click the tab, or drag files over it, to bring it back.
+- **Recently Closed:** the menu bar keeps the last 10 shelves you closed with things on them; pick one to reopen it.
+- **Favourites:** add folders and apps in Settings. While you drag over a shelf they appear as drop targets under the Instant Actions (folders get a copy, ⌘ moves; apps open the files), and in the shelf menu as Copy To, Move To and Open With.
+- **Automatic shelves:** new screenshots (recognised by the marker macOS writes on them, in any language) and new files in watched folders such as Downloads appear on a named shelf in the top-right corner, without taking focus. Unfinished downloads are ignored.
 - **Pin** a shelf to keep it with its items after restarting. Pinned shelves follow files that get renamed or moved, and flag ones that were deleted.
 - **Keys:** Space opens Quick Look, ↑/↓ move the selection (Shift extends it), Return opens, ⌫ removes, ⌘A selects all, Esc clears the selection. Double-click opens an item; double-click the title to rename the shelf.
 - **Right-click** an item: Open, Quick Look, Show in Finder, Rename… (renames the file itself), Copy, Remove.

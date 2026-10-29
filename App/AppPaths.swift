@@ -11,6 +11,7 @@ enum AppPaths {
     }
 
     static var archive: URL { support.appendingPathComponent("shelves.json") }
+    static var recentArchive: URL { support.appendingPathComponent("recent.json") }
 
     static var drops: URL { support.appendingPathComponent("Drops", isDirectory: true) }
 

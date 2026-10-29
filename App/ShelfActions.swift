@@ -53,6 +53,19 @@ extension ShelfController {
         menu.autoenablesItems = false
         menu.addItem(ActionMenuItem(shelf.isPinned ? "Unpin Shelf" : "Pin Shelf") { [weak self] in self?.togglePin() })
         menu.addItem(ActionMenuItem("Name Shelf…") { [weak self] in self?.promptForName() })
+        let colour = NSMenuItem(title: "Colour", action: nil, keyEquivalent: "")
+        let colours = NSMenu()
+        let none = ActionMenuItem("None") { [weak self] in self?.setColor(nil) }
+        none.state = shelf.color == nil ? .on : .off
+        colours.addItem(none)
+        for option in ShelfColor.allCases {
+            let item = ActionMenuItem(option.displayName) { [weak self] in self?.setColor(option) }
+            item.image = option.swatch()
+            item.state = shelf.color == option ? .on : .off
+            colours.addItem(item)
+        }
+        colour.submenu = colours
+        menu.addItem(colour)
         if !shelf.isEmpty {
             menu.addItem(ActionMenuItem(isExpanded ? "Show as Pile" : "Show All Items") { [weak self] in
                 guard let self else { return }
@@ -88,6 +101,34 @@ extension ShelfController {
         menu.autoenablesItems = false
         menu.addItem(item("Share…", enabled: !targets.isEmpty) { [weak self] in self?.share(targets) })
         menu.addItem(item("AirDrop…", enabled: !targets.isEmpty) { [weak self] in self?.airDrop(targets) })
+        let favourites = Favourite.all
+        let folders = favourites.filter { !$0.isApp }, apps = favourites.filter(\.isApp)
+        if !folders.isEmpty {
+            for move in [false, true] {
+                let parent = NSMenuItem(title: move ? "Move To" : "Copy To", action: nil, keyEquivalent: "")
+                let submenu = NSMenu()
+                for folder in folders {
+                    let entry = item(folder.name) { [weak self] in self?.copy(files, into: folder.url, move: move) }
+                    entry.image = folder.icon(size: 16)
+                    submenu.addItem(entry)
+                }
+                parent.submenu = submenu
+                parent.isEnabled = !files.isEmpty
+                menu.addItem(parent)
+            }
+        }
+        if !apps.isEmpty {
+            let parent = NSMenuItem(title: "Open With", action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            for app in apps {
+                let entry = item(app.name) { [weak self] in self?.open(files, with: app.url) }
+                entry.image = app.icon(size: 16)
+                submenu.addItem(entry)
+            }
+            parent.submenu = submenu
+            parent.isEnabled = !files.isEmpty
+            menu.addItem(parent)
+        }
         menu.addItem(.separator())
         menu.addItem(item(files.isEmpty ? "Compress to ZIP" : "Compress \(count(files.count, "Item")) to ZIP",
                           enabled: !files.isEmpty) { [weak self] in self?.zip(files) })
@@ -150,6 +191,48 @@ extension ShelfController {
         }
         NSApp.activate(ignoringOtherApps: true)
         service.perform(withItems: objects)
+    }
+
+    // MARK: Favourites
+
+    /// Copies (or moves) files into a folder. Moved files stay on the shelf at their new place.
+    func copy(_ urls: [URL], into folder: URL, move: Bool) {
+        guard !urls.isEmpty else { return }
+        run(move ? "Moving…" : "Copying…") {
+            for url in urls {
+                let target = OutputNaming.url(in: folder, for: url.lastPathComponent, fileExtension: url.pathExtension)
+                if move {
+                    try FileManager.default.moveItem(at: url, to: target)
+                } else {
+                    try FileManager.default.copyItem(at: url, to: target)
+                }
+            }
+            let what = urls.count == 1 ? urls[0].lastPathComponent : "\(urls.count) items"
+            return ([], "\(move ? "Moved" : "Copied") \(what) to \(folder.lastPathComponent)")
+        } after: { [weak self] _ in
+            if move { self?.refreshFiles() }
+        }
+    }
+
+    func open(_ urls: [URL], with app: URL) {
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.open(urls, withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+        showStatus("Opened in \(app.deletingPathExtension().lastPathComponent)")
+    }
+
+    /// Something was dropped on a favourite in the drop strip: apps open it; folders get a
+    /// copy, or the original when Command is held.
+    func drop(_ items: [ShelfItem], on favourite: Favourite) {
+        let files = items.compactMap(\.fileURL)
+        guard !files.isEmpty else {
+            showStatus("Only files can go to \(favourite.name)", isError: true)
+            return
+        }
+        if favourite.isApp {
+            open(files, with: favourite.url)
+        } else {
+            copy(files, into: favourite.url, move: NSEvent.modifierFlags.contains(.command))
+        }
     }
 
     // MARK: Files
@@ -305,5 +388,42 @@ enum ShelfLayout: String {
     static var saved: ShelfLayout {
         get { ShelfLayout(rawValue: UserDefaults.standard.string(forKey: "shelfLayout") ?? "") ?? .grid }
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "shelfLayout") }
+    }
+}
+
+/// A folder or app the user keeps handy as a drop target (Settings ▸ Favourites).
+struct Favourite: Identifiable, Hashable {
+    let url: URL
+
+    var id: String { url.path }
+    var isApp: Bool { url.pathExtension == "app" }
+    var name: String { FileManager.default.displayName(atPath: url.path) }
+
+    func icon(size: CGFloat) -> NSImage {
+        let image = NSWorkspace.shared.icon(forFile: url.path)
+        image.size = NSSize(width: size, height: size)
+        return image
+    }
+
+    /// Favourites that still exist, in the order they were added.
+    static var all: [Favourite] {
+        Prefs.favourites.filter { FileManager.default.fileExists(atPath: $0) }
+            .map { Favourite(url: URL(fileURLWithPath: $0)) }
+    }
+}
+
+extension ShelfColor {
+    var nsColor: NSColor {
+        NSColor(srgbRed: CGFloat((rgb >> 16) & 0xFF) / 255, green: CGFloat((rgb >> 8) & 0xFF) / 255,
+                blue: CGFloat(rgb & 0xFF) / 255, alpha: 1)
+    }
+
+    /// A small round swatch for menus.
+    func swatch(size: CGFloat = 12) -> NSImage {
+        NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            nsColor.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
     }
 }

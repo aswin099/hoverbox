@@ -15,6 +15,9 @@ enum Prefs {
     /// How solid the shelf background is: 0 is clear glass, 1 is the opaque window colour.
     static let backgroundOpacity = "shelfBackgroundOpacity"
     static let defaultBackgroundOpacity = 0.55
+    static let favouritesKey = "favourites"
+    static let watchedFoldersKey = "watchedFolders"
+    static let screenshotsKey = "screenshotsToShelf"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -23,12 +26,32 @@ enum Prefs {
             excludedApps: [String](),
             keepAfterDragOut: false,
             backgroundOpacity: defaultBackgroundOpacity,
+            favouritesKey: [String](),
+            watchedFoldersKey: [String](),
+            screenshotsKey: false,
         ])
     }
 
     static var excludedBundleIDs: [String] {
         get { UserDefaults.standard.stringArray(forKey: excludedApps) ?? [] }
         set { UserDefaults.standard.set(newValue, forKey: excludedApps) }
+    }
+
+    /// Folders and apps to drop onto, as paths.
+    static var favourites: [String] {
+        get { UserDefaults.standard.stringArray(forKey: favouritesKey) ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: favouritesKey) }
+    }
+
+    /// Folders whose new files open a shelf.
+    static var watchedFolders: [String] {
+        get { UserDefaults.standard.stringArray(forKey: watchedFoldersKey) ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: watchedFoldersKey) }
+    }
+
+    static var screenshotsToShelf: Bool {
+        get { UserDefaults.standard.bool(forKey: screenshotsKey) }
+        set { UserDefaults.standard.set(newValue, forKey: screenshotsKey) }
     }
 
     static var shakeSensitivity: ShakeDetector.Sensitivity {

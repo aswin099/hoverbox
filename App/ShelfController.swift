@@ -17,11 +17,13 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     var rowFrames: [UUID: CGRect] = [:]
     /// A short message in the footer ("3 images resized"); errors show in orange.
     @Published private(set) var status: (text: String, isError: Bool)?
-    /// The Instant Action under the pointer during a drag.
-    @Published var hoveredInstant: InstantAction?
+    /// The drop-strip target (an Instant Action or a favourite) under the pointer during a drag.
+    @Published var hoveredZone: String?
     /// Compact shows the pile and its name; expanded lays out every item.
     @Published private(set) var isExpanded = false
     @Published private(set) var layout = ShelfLayout.saved
+    /// The screen edge the shelf is tucked against as a slim tab, if any.
+    @Published private(set) var dockedEdge: DockEdge?
     private var statusClear: DispatchWorkItem?
     private var shrinkWindow: DispatchWorkItem?
 
@@ -40,7 +42,11 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
         let catcher = DropCatcherView(frame: NSRect(origin: .zero, size: ShelfPanel.compactSize))
         catcher.onDrop = { [weak self] items in self?.add(items) }
-        catcher.onTargetChange = { [weak self] targeted in self?.isDropTargeted = targeted }
+        catcher.onTargetChange = { [weak self] targeted in
+            self?.isDropTargeted = targeted
+            // Dragging something over a docked tab brings the shelf out to catch it.
+            if targeted { self?.undockIfNeeded() }
+        }
         catcher.onReorderHover = { [weak self] point in
             guard let self else { return }
             let index = point.map { self.insertionIndex(at: $0) }
@@ -254,6 +260,58 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         let clear = DispatchWorkItem { [weak self] in self?.status = nil }
         statusClear = clear
         DispatchQueue.main.asyncAfter(deadline: .now() + (isError ? 6 : 4), execute: clear)
+    }
+
+    // MARK: Colour
+
+    func setColor(_ color: ShelfColor?) {
+        shelf.color = color
+        changed()
+    }
+
+    // MARK: Docking
+
+    /// Called when the user lets go after moving the shelf. Pushing its card past the left
+    /// or right edge of the screen tucks it away as a slim tab.
+    func windowDragEnded() {
+        guard NSEvent.pressedMouseButtons & 1 == 0 else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in self?.windowDragEnded() }
+            return
+        }
+        guard dockedEdge == nil, let screen = panel.screen ?? NSScreen.main else { return }
+        let card = panel.frame.insetBy(dx: ShelfPanel.margin, dy: ShelfPanel.margin)
+        if card.minX <= screen.frame.minX + 2 {
+            dock(.left, on: screen)
+        } else if card.maxX >= screen.frame.maxX - 2 {
+            dock(.right, on: screen)
+        }
+    }
+
+    func dock(_ edge: DockEdge, on screen: NSScreen) {
+        if isExpanded {
+            shrinkWindow?.cancel()
+            isExpanded = false
+        }
+        let size = ShelfPanel.tabSize
+        let bounds = screen.visibleFrame
+        let x = edge == .left ? screen.frame.minX : screen.frame.maxX - size.width
+        let y = min(max(panel.frame.midY - size.height / 2, bounds.minY), bounds.maxY - size.height)
+        dockedEdge = edge
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+    }
+
+    func undock() {
+        guard let edge = dockedEdge, let screen = panel.screen ?? NSScreen.main else { return }
+        let size = ShelfPanel.compactSize
+        let bounds = screen.visibleFrame
+        let x = edge == .left ? bounds.minX + 4 : bounds.maxX - size.width - 4
+        let y = min(max(panel.frame.midY - size.height / 2, bounds.minY), bounds.maxY - size.height)
+        dockedEdge = nil
+        panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+    }
+
+    func undockIfNeeded() {
+        if dockedEdge != nil { undock() }
     }
 
     // MARK: Selection and clicks

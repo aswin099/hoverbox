@@ -60,8 +60,13 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
             menu.addItem(.separator())
             menu.addItem(NSMenuItem.sectionHeader(title: "Open Shelves"))
             for controller in model.shelves {
-                let item = ActionMenuItem(controller.shelf.title) { controller.bringToFront() }
-                if controller.shelf.isPinned {
+                let item = ActionMenuItem(controller.shelf.title) {
+                    controller.undockIfNeeded()
+                    controller.bringToFront()
+                }
+                if let color = controller.shelf.color {
+                    item.image = color.swatch()
+                } else if controller.shelf.isPinned {
                     item.image = NSImage(systemSymbolName: "pin.fill", accessibilityDescription: "Pinned")
                 }
                 menu.addItem(item)
@@ -69,6 +74,27 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
             let closeAll = ActionMenuItem("Close Unpinned Shelves") { [weak self] in self?.model.closeUnpinnedShelves() }
             closeAll.isEnabled = model.shelves.contains { !$0.shelf.isPinned }
             menu.addItem(closeAll)
+        }
+
+        if !model.recent.shelves.isEmpty {
+            let recent = NSMenuItem(title: "Recently Closed", action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            for shelf in model.recent.shelves {
+                let when = shelf.closedAt.map { formatter.localizedString(for: $0, relativeTo: Date()) } ?? ""
+                let item = ActionMenuItem("\(shelf.title)  ·  \(when)") { [weak self] in
+                    guard let self else { return }
+                    model.reopen(shelf.id, at: pointBelowIcon)
+                }
+                item.image = shelf.color?.swatch()
+                submenu.addItem(item)
+            }
+            submenu.addItem(.separator())
+            submenu.addItem(ActionMenuItem("Clear Recently Closed") { [weak self] in self?.model.clearRecent() })
+            recent.submenu = submenu
+            menu.addItem(.separator())
+            menu.addItem(recent)
         }
 
         menu.addItem(.separator())

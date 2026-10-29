@@ -14,6 +14,8 @@ final class ShelfPanel: NSPanel {
     static let margin: CGFloat = 22
 
     static let compactSize = window(for: compactCard)
+    /// A shelf tucked against a screen edge.
+    static let tabSize = NSSize(width: 34, height: 120)
     static let expandedSize = window(for: expandedCard)
 
     static func window(for card: NSSize) -> NSSize {
@@ -94,16 +96,19 @@ final class ShelfPanel: NSPanel {
 /// almost all controls and thumbnails, so the window background alone isn't enough.
 struct WindowDragHandle: NSViewRepresentable {
     var onDoubleClick: () -> Void = {}
+    var onDragEnded: () -> Void = {}
 
     func makeNSView(context: Context) -> WindowDragHandleView { WindowDragHandleView() }
 
     func updateNSView(_ view: WindowDragHandleView, context: Context) {
         view.onDoubleClick = onDoubleClick
+        view.onDragEnded = onDragEnded
     }
 }
 
 final class WindowDragHandleView: NSView {
     var onDoubleClick: () -> Void = {}
+    var onDragEnded: () -> Void = {}
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
@@ -112,8 +117,13 @@ final class WindowDragHandleView: NSView {
             onDoubleClick()
         } else {
             window?.performDrag(with: event)
+            DispatchQueue.main.async { [weak self] in self?.onDragEnded() }
         }
     }
+}
+
+enum DockEdge {
+    case left, right
 }
 
 /// The shelf's see-through background: macOS's own behind-window blur, with how much of it

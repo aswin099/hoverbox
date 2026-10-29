@@ -10,6 +10,9 @@ struct SettingsView: View {
     @AppStorage(Prefs.backgroundOpacity) private var backgroundOpacity = Prefs.defaultBackgroundOpacity
     @State private var excluded = Prefs.excludedBundleIDs
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var favourites = Prefs.favourites
+    @State private var watchedFolders = Prefs.watchedFolders
+    @State private var screenshots = Prefs.screenshotsToShelf
 
     var body: some View {
         Form {
@@ -81,6 +84,48 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section {
+                ForEach(favourites, id: \.self) { path in
+                    HStack {
+                        PathLabel(path: path)
+                        Spacer()
+                        Button("Remove") { setFavourites(favourites.filter { $0 != path }) }
+                    }
+                }
+                HStack {
+                    Button("Add Folder…") { if let paths = choose(apps: false) { setFavourites(favourites + paths) } }
+                    Button("Add App…") { if let paths = choose(apps: true) { setFavourites(favourites + paths) } }
+                }
+            } header: {
+                Text("Favourites")
+            } footer: {
+                Text("While you drag over a shelf, favourites appear as drop targets: folders get a copy (hold ⌘ to move), apps open the files. They're also under Copy To, Move To and Open With in the shelf menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Put new screenshots on a shelf", isOn: $screenshots)
+                    .onChange(of: screenshots) { _, on in
+                        Prefs.screenshotsToShelf = on
+                        AppModel.shared.reloadFolderWatchers()
+                    }
+                ForEach(watchedFolders, id: \.self) { path in
+                    HStack {
+                        PathLabel(path: path)
+                        Spacer()
+                        Button("Remove") { setWatched(watchedFolders.filter { $0 != path }) }
+                    }
+                }
+                Button("Watch a Folder…") { if let paths = choose(apps: false) { setWatched(watchedFolders + paths) } }
+            } header: {
+                Text("Automatic shelves")
+            } footer: {
+                Text("New screenshots, or new files in a watched folder (such as Downloads), appear on a shelf in the top-right corner without interrupting you. Screenshots are saved to \(ScreenshotDetector.screenshotFolder.lastPathComponent).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("General") {
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in
@@ -96,7 +141,7 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480, height: 600)
+        .frame(width: 520, height: 680)
         .onAppear { NSApp.activate(ignoringOtherApps: true) }
     }
 
@@ -108,9 +153,56 @@ struct SettingsView: View {
             .sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
     }
 
+    private func setFavourites(_ list: [String]) {
+        var seen = Set<String>()
+        favourites = list.filter { seen.insert($0).inserted }
+        Prefs.favourites = favourites
+    }
+
+    private func setWatched(_ list: [String]) {
+        var seen = Set<String>()
+        watchedFolders = list.filter { seen.insert($0).inserted }
+        Prefs.watchedFolders = watchedFolders
+        AppModel.shared.reloadFolderWatchers()
+    }
+
+    /// Asks for folders, or for apps in /Applications.
+    private func choose(apps: Bool) -> [String]? {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = !apps
+        panel.canChooseFiles = apps
+        if apps {
+            panel.allowedContentTypes = [.application]
+            panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        }
+        panel.prompt = apps ? "Add App" : "Choose"
+        guard panel.runModal() == .OK else { return nil }
+        return panel.urls.map(\.path)
+    }
+
     private func setExcluded(_ list: [String]) {
         excluded = Array(Set(list)).sorted()
         Prefs.excludedBundleIDs = excluded
+    }
+}
+
+/// Icon and name for a folder or app at a path.
+private struct PathLabel: View {
+    let path: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                .resizable()
+                .frame(width: 18, height: 18)
+            Text(FileManager.default.displayName(atPath: path))
+            Text((path as NSString).abbreviatingWithTildeInPath)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
     }
 }
 

@@ -18,15 +18,19 @@ public struct Shelf: Identifiable, Codable, Equatable, Sendable {
     public var items: [ShelfItem]
     public var isPinned: Bool
     public var origin: Origin?
+    public var color: ShelfColor?
     public let createdAt: Date
+    /// Set when the shelf goes into the recently closed list.
+    public var closedAt: Date?
 
     public init(id: UUID = UUID(), name: String? = nil, items: [ShelfItem] = [],
-                isPinned: Bool = false, origin: Origin? = nil, createdAt: Date = Date()) {
+                isPinned: Bool = false, origin: Origin? = nil, color: ShelfColor? = nil, createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.items = items
         self.isPinned = isPinned
         self.origin = origin
+        self.color = color
         self.createdAt = createdAt
     }
 
@@ -98,5 +102,61 @@ public struct Shelf: Identifiable, Codable, Equatable, Sendable {
         if links == count { return plural("link") }
         if texts == count { return plural("text snippet") }
         return plural("item")
+    }
+}
+
+/// A colour tag for telling shelves apart. Shown on the shelf's grabber and in menus.
+public enum ShelfColor: String, CaseIterable, Codable, Sendable {
+    case red, orange, yellow, green, mint, blue, purple, pink, graphite
+
+    public var displayName: String { rawValue.capitalized }
+
+    /// sRGB as 0xRRGGBB, readable on both light and dark shelves.
+    public var rgb: UInt32 {
+        switch self {
+        case .red: return 0xFF5A52
+        case .orange: return 0xFF9F2E
+        case .yellow: return 0xF5C518
+        case .green: return 0x3CC35F
+        case .mint: return 0x34C7B8
+        case .blue: return 0x3B82F6
+        case .purple: return 0x9B6BF2
+        case .pink: return 0xF0619A
+        case .graphite: return 0x8E8E93
+        }
+    }
+}
+
+/// Shelves that were closed with things on them, newest first, so they can be reopened.
+public struct RecentShelves: Equatable, Sendable {
+    public private(set) var shelves: [Shelf]
+    public let limit: Int
+
+    public init(shelves: [Shelf] = [], limit: Int = 10) {
+        self.shelves = Array(shelves.prefix(limit))
+        self.limit = limit
+    }
+
+    /// Remembers a closed shelf. Empty shelves aren't worth remembering.
+    public mutating func remember(_ shelf: Shelf, at date: Date = Date()) {
+        guard !shelf.isEmpty else { return }
+        var closed = shelf
+        closed.closedAt = date
+        closed.isPinned = false
+        shelves.removeAll { $0.id == shelf.id }
+        shelves.insert(closed, at: 0)
+        if shelves.count > limit { shelves.removeLast(shelves.count - limit) }
+    }
+
+    /// Removes and returns a shelf for reopening.
+    public mutating func take(_ id: UUID) -> Shelf? {
+        guard let index = shelves.firstIndex(where: { $0.id == id }) else { return nil }
+        var shelf = shelves.remove(at: index)
+        shelf.closedAt = nil
+        return shelf
+    }
+
+    public mutating func clear() {
+        shelves.removeAll()
     }
 }

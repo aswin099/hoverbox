@@ -1,13 +1,15 @@
 import Foundation
 
-/// Saves pinned shelves as JSON. Unpinned shelves are temporary by design and
-/// are never written to disk. The file holds paths and bookmarks only, never
-/// file contents.
+/// Saves shelves as JSON: by default only pinned ones, since unpinned shelves are
+/// temporary by design (the recently closed list saves everything it's given).
+/// The file holds paths and bookmarks only, never file contents.
 public struct ShelfArchive {
     public let fileURL: URL
+    public let pinnedOnly: Bool
 
-    public init(fileURL: URL) {
+    public init(fileURL: URL, pinnedOnly: Bool = true) {
         self.fileURL = fileURL
+        self.pinnedOnly = pinnedOnly
     }
 
     public func load() -> [Shelf] {
@@ -16,7 +18,7 @@ public struct ShelfArchive {
     }
 
     public func save(_ shelves: [Shelf]) throws {
-        let pinned = shelves.filter(\.isPinned)
+        let pinned = pinnedOnly ? shelves.filter(\.isPinned) : shelves
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         let encoder = JSONEncoder()
