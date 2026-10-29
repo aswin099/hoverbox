@@ -1,0 +1,54 @@
+# XcodeGen spec. Run `xcodegen generate` to create Hoverbox.xcodeproj (not committed).
+name: Hoverbox
+options:
+  bundleIdPrefix: com.arcova
+  deploymentTarget:
+    macOS: "14.0"
+  # Keep the project file in an older format so it opens in more Xcode versions (newer XcodeGen defaults to Xcode 16+).
+  projectFormat: xcode15_0
+packages:
+  HoverboxCore:
+    path: Packages/HoverboxCore
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    # 3.1.0 fixes shortcut recording on macOS 27. Needs Xcode 26 or later (Swift 6.2).
+    from: "3.1.0"
+targets:
+  Hoverbox:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - package: HoverboxCore
+      - package: KeyboardShortcuts
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Hoverbox
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSUIElement: true
+        LSMinimumSystemVersion: "14.0"
+        NSHumanReadableCopyright: "Copyright © 2026 Aswin Ravichandran. MIT License."
+        CFBundleURLTypes:
+          - CFBundleURLName: com.arcova.hoverbox
+            CFBundleURLSchemes:
+              - hoverbox
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arcova.hoverbox
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        # Not sandboxed yet: shelves hold references to files anywhere on disk.
+        # The App Store build will need security-scoped bookmarks instead.
+schemes:
+  Hoverbox:
+    build:
+      targets:
+        Hoverbox: all
+    run:
+      config: Debug
