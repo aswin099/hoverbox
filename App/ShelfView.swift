@@ -10,38 +10,57 @@ struct ShelfView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let space = "shelf"
+    /// How long the card takes to open or close; the window shrinks after this.
+    static let cardAnimationDuration: TimeInterval = 0.45
+
     private var shelf: Shelf { controller.shelf }
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 22, style: .continuous) }
 
     var body: some View {
-        ZStack {
-            if controller.isExpanded {
+        let expanded = controller.isExpanded
+        let card = expanded ? ShelfPanel.expandedCard : ShelfPanel.compactCard
+        ZStack(alignment: .top) {
+            // Each face is laid out at its own final size and revealed by the card as it
+            // grows or shrinks, so nothing reflows mid-animation.
+            if expanded {
                 ExpandedShelf(controller: controller)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+                    .frame(width: ShelfPanel.expandedCard.width, height: ShelfPanel.expandedCard.height)
+                    .transition(.asymmetric(insertion: .opacity.animation(fade(0.22, delay: 0.06)),
+                                            removal: .opacity.animation(fade(0.14))))
             } else {
                 CompactShelf(controller: controller)
-                    .transition(.opacity.combined(with: .scale(scale: 1.04, anchor: .top)))
+                    .frame(width: ShelfPanel.compactCard.width, height: ShelfPanel.compactCard.height)
+                    .transition(.asymmetric(insertion: .opacity.animation(fade(0.22, delay: 0.12)),
+                                            removal: .opacity.animation(fade(0.12))))
             }
         }
-        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: controller.isExpanded)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(width: card.width, height: card.height, alignment: .top)
         .overlay(alignment: .bottom) {
             if controller.isDropTargeted {
-                InstantActionStrip(controller: controller, compact: !controller.isExpanded)
+                InstantActionStrip(controller: controller, compact: !expanded)
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: controller.isDropTargeted)
         .coordinateSpace(name: ShelfView.space)
         .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(.regularMaterial, in: shape)
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.14),
-                              lineWidth: controller.isDropTargeted ? 2 : 0.5)
+            shape.strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.14),
+                               lineWidth: controller.isDropTargeted ? 2 : 0.5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .clipShape(shape)
+        // A soft shadow drawn by the card itself (the window has none), so it follows the animation.
+        .background(shape.fill(Color.black.opacity(0.32)).blur(radius: 12).offset(y: 6).padding(2))
+        .animation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.86), value: expanded)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, ShelfPanel.margin)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Shelf: \(shelf.title)")
+    }
+
+    private func fade(_ duration: Double, delay: Double = 0) -> Animation? {
+        reduceMotion ? nil : .easeOut(duration: duration).delay(delay)
     }
 }
 

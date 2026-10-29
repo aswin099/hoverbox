@@ -4,10 +4,20 @@ import Quartz
 /// Floating, non-activating window for one shelf: it appears over every app
 /// and Space without taking focus from the app you're dragging from.
 final class ShelfPanel: NSPanel {
-    /// The pile with its name: what a shelf looks like when it appears.
-    static let compactSize = NSSize(width: 216, height: 236)
-    /// Every item laid out, after clicking the name.
-    static let expandedSize = NSSize(width: 452, height: 372)
+    /// The visible card: the pile with its name, as a shelf first appears.
+    static let compactCard = NSSize(width: 216, height: 236)
+    /// The visible card with every item laid out, after clicking the name.
+    static let expandedCard = NSSize(width: 452, height: 372)
+    /// Clear space around the card for its shadow. The card draws its own shadow,
+    /// so it stays smooth while the card animates.
+    static let margin: CGFloat = 22
+
+    static let compactSize = window(for: compactCard)
+    static let expandedSize = window(for: expandedCard)
+
+    static func window(for card: NSSize) -> NSSize {
+        NSSize(width: card.width + margin * 2, height: card.height + margin * 2)
+    }
 
     weak var controller: ShelfController?
 
@@ -22,7 +32,7 @@ final class ShelfPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        hasShadow = false
         isReleasedWhenClosed = false
     }
 
@@ -50,20 +60,13 @@ final class ShelfPanel: NSPanel {
         return true
     }
 
-    /// Grows or shrinks around the top edge's center, staying on screen.
-    func resize(to size: NSSize, animated: Bool) {
+    /// Changes the window size in one step around the top edge's center, staying on
+    /// screen. The card inside does the animating; the window never resizes frame by frame.
+    func resize(to size: NSSize) {
         let old = frame
         var rect = NSRect(x: old.midX - size.width / 2, y: old.maxY - size.height, width: size.width, height: size.height)
         if let bounds = screen?.visibleFrame { rect = Self.clamp(rect, to: bounds) }
-        guard animated else {
-            setFrame(rect, display: true)
-            return
-        }
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.28
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.25, 1)
-            animator().setFrame(rect, display: true)
-        }
+        setFrame(rect, display: true)
     }
 
     private static func clamp(_ rect: NSRect, to bounds: NSRect) -> NSRect {

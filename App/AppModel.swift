@@ -103,7 +103,8 @@ final class AppModel: ObservableObject {
         if let layout = query["layout"].flatMap(ShelfLayout.init(rawValue:)) { shelf.setLayout(layout) }
         if let target = query["target"] { shelf.isDropTargeted = target == "1" }
         guard let folder = query["snapshot"] else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [shelves] in
+        let wait = Double(query["delay"] ?? "") ?? 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + wait) { [shelves] in
             for (index, controller) in shelves.enumerated() {
                 guard let view = controller.panel.contentView,
                       let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
@@ -111,6 +112,8 @@ final class AppModel: ObservableObject {
                 let name = query["name"].map { index == shelves.count - 1 ? $0 : "\($0)-\(index)" } ?? "shelf-\(index)"
                 let url = URL(fileURLWithPath: folder).appendingPathComponent(name + ".png")
                 try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                let state = "expanded=\(controller.isExpanded) window=\(Int(controller.panel.frame.width))x\(Int(controller.panel.frame.height))\n"
+                try? state.write(to: url.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)
             }
         }
     }

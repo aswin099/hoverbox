@@ -23,6 +23,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     @Published private(set) var isExpanded = false
     @Published private(set) var layout = ShelfLayout.saved
     private var statusClear: DispatchWorkItem?
+    private var shrinkWindow: DispatchWorkItem?
 
     let panel = ShelfPanel()
     private weak var model: AppModel?
@@ -107,12 +108,33 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         changed()
     }
 
+    /// Growing: the window takes its full size first (the transparent margin hides that),
+    /// then the card animates open inside it. Shrinking: the card animates closed first,
+    /// then the window shrinks to match. The window itself never animates.
     func setExpanded(_ expanded: Bool) {
         guard expanded != isExpanded, !(expanded && shelf.isEmpty) else { return }
-        isExpanded = expanded
-        panel.resize(to: expanded ? ShelfPanel.expandedSize : ShelfPanel.compactSize,
-                     animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        if expanded { panel.makeKey() }
+        shrinkWindow?.cancel()
+        if expanded {
+            panel.resize(to: ShelfPanel.expandedSize)
+            // Lay out and draw at the new window size first, so the card starts exactly where
+            // it was on screen; then animate it open on the next pass.
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.displayIfNeeded()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !shelf.isEmpty else { return }
+                isExpanded = true
+                panel.makeKey()
+            }
+        } else {
+            isExpanded = false
+            let shrink = DispatchWorkItem { [weak self] in
+                guard let self, !isExpanded else { return }
+                panel.resize(to: ShelfPanel.compactSize)
+            }
+            shrinkWindow = shrink
+            let delay = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : ShelfView.cardAnimationDuration
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: shrink)
+        }
     }
 
     func setLayout(_ newLayout: ShelfLayout) {
@@ -129,10 +151,12 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     /// The position under a point in the drop view (bottom-left origin): before the first
     /// item the point is above, or, in the grid, left of within the same row.
     private func insertionIndex(at point: NSPoint) -> Int {
-        let y = (panel.contentView?.bounds.height ?? 0) - point.y
+        // Into the card's coordinates: top-left origin, inside the shadow margin.
+        let x = point.x - ShelfPanel.margin
+        let y = (panel.contentView?.bounds.height ?? 0) - point.y - ShelfPanel.margin
         for (index, item) in shelf.items.enumerated() {
             guard let frame = rowFrames[item.id] else { continue }
-            if layout == .list ? y < frame.midY : (y < frame.minY || (y <= frame.maxY && point.x < frame.midX)) {
+            if layout == .list ? y < frame.midY : (y < frame.minY || (y <= frame.maxY && x < frame.midX)) {
                 return index
             }
         }
