@@ -115,3 +115,38 @@ final class WindowDragHandleView: NSView {
         }
     }
 }
+
+/// The shelf's see-through background: macOS's own behind-window blur, with how much of it
+/// shows controlled by the Glass–Solid setting. SwiftUI's materials carry a fixed tint that
+/// stays nearly opaque, so they can't go as clear as "glass" should.
+struct ShelfBackground: NSViewRepresentable {
+    /// 0 is clear glass, 1 is solid.
+    var solidity: Double
+
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        let blur = NSVisualEffectView()
+        blur.material = .popover
+        blur.blendingMode = .behindWindow
+        blur.state = .active
+        blur.autoresizingMask = [.width, .height]
+        container.addSubview(blur)
+        let tint = NSView()
+        tint.wantsLayer = true
+        tint.autoresizingMask = [.width, .height]
+        container.addSubview(tint)
+        return container
+    }
+
+    func updateNSView(_ container: NSView, context: Context) {
+        guard container.subviews.count == 2 else { return }
+        let blur = container.subviews[0], tint = container.subviews[1]
+        blur.frame = container.bounds
+        tint.frame = container.bounds
+        // Glass keeps a faint blur so text stays readable; solid ends at the plain window colour.
+        blur.alphaValue = 0.45 + 0.55 * solidity
+        container.effectiveAppearance.performAsCurrentDrawingAppearance {
+            tint.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(solidity * 0.92).cgColor
+        }
+    }
+}

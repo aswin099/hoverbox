@@ -56,8 +56,7 @@ struct ShelfView: View {
         .coordinateSpace(name: ShelfView.space)
         .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
         // Glass at 0, solid at 1 (Settings ▸ Look).
-        .background(Color(nsColor: .windowBackgroundColor).opacity(backgroundOpacity), in: shape)
-        .background(.ultraThinMaterial, in: shape)
+        .background(ShelfBackground(solidity: backgroundOpacity).clipShape(shape))
         .overlay(
             shape.strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.14),
                                lineWidth: controller.isDropTargeted ? 2 : 0.5)
