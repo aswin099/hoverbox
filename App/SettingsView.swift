@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 /// menu bar icon is AppKit and can't open SwiftUI's Settings scene.
 @MainActor
 enum SettingsWindow {
+    /// Every tab has this size, so the window stays still when you switch tabs.
+    static let size = CGSize(width: 520, height: 440)
+
     static func make() -> NSWindow {
         let tabs = NSTabViewController()
         tabs.tabStyle = .toolbar
@@ -69,7 +72,7 @@ private struct GeneralSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 360)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
         .onChange(of: launchAtLogin) { _, enabled in
             do {
                 if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -131,7 +134,7 @@ private struct ShakeSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 430)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
     }
 
     private var runningApps: [NSRunningApplication] {
@@ -208,7 +211,7 @@ private struct ShelvesSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 400)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
     }
 }
 
@@ -237,7 +240,7 @@ private struct FavouritesSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 360)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
     }
 
     private func add(apps: Bool) {
@@ -294,7 +297,7 @@ private struct AutomaticSettings: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 420)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
         .onChange(of: screenshots) { _, on in
             Prefs.screenshotsToShelf = on
             AppModel.shared.reloadFolderWatchers()
@@ -347,7 +350,7 @@ private struct AboutSettings: View {
                 .foregroundStyle(.tertiary)
         }
         .padding(32)
-        .frame(width: 520, height: 300)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
     }
 }
 
