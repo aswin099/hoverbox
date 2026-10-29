@@ -78,3 +78,43 @@ struct AxisTracker {
         return reversals.count
     }
 }
+
+/// Recognises "holding still" during a drag: the pointer staying within a few points for a
+/// moment. An alternative to shaking for people who find quick back-and-forth movement hard
+/// (tremors, head pointers, dwell control). Like ShakeDetector it only sees numbers.
+public struct DwellDetector {
+    /// How long the pointer must stay put.
+    public let duration: TimeInterval
+    /// How far, in points, it may wander and still count as still.
+    public let radius: Double
+    /// Ignore stillness right at the start of a drag, before the drag is under way.
+    public let minimumDragTime: TimeInterval
+
+    private var anchor: (x: Double, y: Double, time: TimeInterval)?
+    private var started: TimeInterval?
+    public private(set) var hasFired = false
+
+    public init(duration: TimeInterval = 1.0, radius: Double = 6, minimumDragTime: TimeInterval = 0.3) {
+        self.duration = duration
+        self.radius = radius
+        self.minimumDragTime = minimumDragTime
+    }
+
+    /// Adds a pointer sample. Returns `true` exactly once, when the pointer has been still long enough.
+    public mutating func add(x: Double, y: Double, time: TimeInterval) -> Bool {
+        guard !hasFired else { return false }
+        if started == nil { started = time }
+        guard let anchor, hypot(x - anchor.x, y - anchor.y) <= radius else {
+            self.anchor = (x, y, time)
+            return false
+        }
+        guard time - anchor.time >= duration, time - (started ?? time) >= minimumDragTime else { return false }
+        hasFired = true
+        return true
+    }
+
+    /// Starts the stillness timer over, for example while the pointer is over a shelf.
+    public mutating func restart() {
+        anchor = nil
+    }
+}

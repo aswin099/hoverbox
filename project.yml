@@ -31,6 +31,21 @@ targets:
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHumanReadableCopyright: "Copyright © 2026 Aswin Ravichandran. MIT License."
+        # Finder's right-click menu (and every app's Services menu): "Add to Hoverbox".
+        # The shortcut acts on the current selection, so no Automation permission is needed.
+        NSServices:
+          - NSMenuItem:
+              default: Add to Hoverbox
+            NSMessage: addToShelf
+            NSPortName: Hoverbox
+            NSSendFileTypes:
+              - public.item
+            NSSendTypes:
+              - public.utf8-plain-text
+              - public.url
+            NSRequiredContext: {}
+            NSKeyEquivalent:
+              default: B
         CFBundleURLTypes:
           - CFBundleURLName: com.arcova.hoverbox
             CFBundleURLSchemes:

@@ -7,6 +7,9 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 ## What works in the preview
 - **Two faces:** a shelf appears compact, as a pile of thumbnails with its name. Drag the pile to take everything; click it or the name to grow it into the full view, a grid or list with names, sizes and PDF page counts. The chevron opens shelf options (pin, name, show all) and the actions.
 - **Shake to open:** shake the pointer while dragging anything (files, images, links, text) and a shelf appears under it. Asks for no permissions.
+- **Hold still to open:** instead of (or as well as) shaking, pause the pointer during a drag for 0.5–2 s (Settings › Opening). Made for head pointers, dwell control and tremors; it never triggers over a shelf you're dropping onto.
+- **No dragging needed:** in Finder, right-click › **Add to Hoverbox** (or press ⇧⌘B; change it in System Settings › Keyboard › Keyboard Shortcuts › Services). Or copy files with ⌘C and press ⌘V on a shelf. ⌘C on a shelf copies the selected items.
+- **VoiceOver:** shelves announce when they open or close, when items arrive and when actions finish.
 - **Hotkey:** ⌥⇧Space opens a shelf at the pointer. Change it in Settings.
 - **Drop anything:** files and folders, images from a browser, photos from Photos, links, and text.
 - **Drag out:** drag the pile at the top to move everything, or drag single items. Select with click, ⌘-click or Shift-click and drag the selection. In Finder, Option copies and Command moves.

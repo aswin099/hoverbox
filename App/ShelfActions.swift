@@ -52,6 +52,9 @@ extension ShelfController {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.addItem(ActionMenuItem(shelf.isPinned ? "Unpin Shelf" : "Pin Shelf") { [weak self] in self?.togglePin() })
+        let paste = ActionMenuItem("Paste") { [weak self] in self?.paste() }
+        paste.keyEquivalent = "v"
+        menu.addItem(paste)
         menu.addItem(ActionMenuItem("Name Shelf…") { [weak self] in self?.promptForName() })
         let colour = NSMenuItem(title: "Colour", action: nil, keyEquivalent: "")
         let colours = NSMenu()

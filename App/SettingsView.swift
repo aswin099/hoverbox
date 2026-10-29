@@ -26,7 +26,7 @@ enum SettingsWindow {
             tabs.addTabViewItem(item)
         }
         add("General", "gearshape", GeneralSettings())
-        add("Shake", "hand.draw", ShakeSettings())
+        add("Opening", "hand.draw", ShakeSettings())
         add("Shelves", "square.stack", ShelvesSettings())
         add("Favourites", "star", FavouritesSettings())
         add("Automatic", "bolt.badge.clock", AutomaticSettings())
@@ -89,6 +89,8 @@ private struct GeneralSettings: View {
 private struct ShakeSettings: View {
     @AppStorage(Prefs.shakeEnabled) private var shakeEnabled = true
     @AppStorage(Prefs.sensitivity) private var sensitivity = ShakeDetector.Sensitivity.medium.rawValue
+    @AppStorage(Prefs.openTriggerKey) private var trigger = OpenTrigger.shake.rawValue
+    @AppStorage(Prefs.dwellDelayKey) private var dwellDelay = 1.0
     @State private var excluded = Prefs.excludedBundleIDs
     @State private var selection: String?
 
@@ -96,22 +98,39 @@ private struct ShakeSettings: View {
         Form {
             Section {
                 Toggle(isOn: $shakeEnabled) {
-                    Text("Shake the pointer while dragging to open a shelf")
-                    Text("Works in every app and needs no permissions. You can always use the shortcut or the menu bar icon instead.")
+                    Text("Open a shelf while dragging")
+                    Text("Works in every app and needs no permissions. The shortcut, the menu bar icon and Finder's Add to Hoverbox always work too.")
                 }
-                Picker("Sensitivity", selection: $sensitivity) {
-                    Text("Low: big, deliberate shakes").tag(ShakeDetector.Sensitivity.low.rawValue)
-                    Text("Medium").tag(ShakeDetector.Sensitivity.medium.rawValue)
-                    Text("High: small shakes are enough").tag(ShakeDetector.Sensitivity.high.rawValue)
+                Picker("Open by", selection: $trigger) {
+                    Text("Shaking the pointer").tag(OpenTrigger.shake.rawValue)
+                    Text("Holding the pointer still").tag(OpenTrigger.dwell.rawValue)
+                    Text("Either").tag(OpenTrigger.both.rawValue)
                 }
                 .disabled(!shakeEnabled)
+                if trigger != OpenTrigger.dwell.rawValue {
+                    Picker("Shake sensitivity", selection: $sensitivity) {
+                        Text("Low: big, deliberate shakes").tag(ShakeDetector.Sensitivity.low.rawValue)
+                        Text("Medium").tag(ShakeDetector.Sensitivity.medium.rawValue)
+                        Text("High: small shakes are enough").tag(ShakeDetector.Sensitivity.high.rawValue)
+                    }
+                    .disabled(!shakeEnabled)
+                }
+                if trigger != OpenTrigger.shake.rawValue {
+                    Picker("Hold still for", selection: $dwellDelay) {
+                        Text("Half a second").tag(0.5)
+                        Text("1 second").tag(1.0)
+                        Text("1.5 seconds").tag(1.5)
+                        Text("2 seconds").tag(2.0)
+                    }
+                    .disabled(!shakeEnabled)
+                }
             } footer: {
-                Text("If shelves open when you don't want them (for example with a tremor), choose Low, or turn shaking off for some apps below.")
+                Text("Holding still suits head pointers, dwell control and tremors, where shaking is hard or happens by accident. It never triggers over a shelf you're dropping onto.")
                     .settingsFootnote()
             }
 
             Section {
-                ItemList(items: excluded, selection: $selection, empty: "Shaking works in every app") { bundleID in
+                ItemList(items: excluded, selection: $selection, empty: "Shelves open in every app") { bundleID in
                     AppRow(bundleID: bundleID)
                 }
                 ListButtons(canRemove: selection != nil, remove: removeSelected) {
@@ -127,7 +146,7 @@ private struct ShakeSettings: View {
                     }
                 }
             } header: {
-                Text("Don't open shelves when shaking in")
+                Text("Don't open shelves while dragging in")
             } footer: {
                 Text("Useful for games and design tools where you drag a lot.")
                     .settingsFootnote()

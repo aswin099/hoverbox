@@ -41,7 +41,13 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         super.init()
 
         let catcher = DropCatcherView(frame: NSRect(origin: .zero, size: ShelfPanel.compactSize))
-        catcher.onDrop = { [weak self] items in self?.add(items) }
+        catcher.onDrop = { [weak self] items in
+            guard let self else { return }
+            let before = shelf.items.count
+            add(items)
+            let added = Array(shelf.items.dropFirst(before))
+            if !added.isEmpty { Announcer.say("Added \(Shelf.summary(of: added)) to the shelf") }
+        }
         catcher.onTargetChange = { [weak self] targeted in
             self?.isDropTargeted = targeted
             // Dragging something over a docked tab brings the shelf out to catch it.
@@ -256,6 +262,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     func showStatus(_ text: String, isError: Bool = false, sticky: Bool = false) {
         statusClear?.cancel()
         status = (text, isError)
+        Announcer.say(text)
         guard !sticky else { return }
         let clear = DispatchWorkItem { [weak self] in self?.status = nil }
         statusClear = clear
@@ -298,6 +305,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         let y = min(max(panel.frame.midY - size.height / 2, bounds.minY), bounds.maxY - size.height)
         dockedEdge = edge
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        Announcer.say("Shelf tucked against the \(edge == .left ? "left" : "right") edge")
     }
 
     func undock() {
@@ -308,6 +316,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         let y = min(max(panel.frame.midY - size.height / 2, bounds.minY), bounds.maxY - size.height)
         dockedEdge = nil
         panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
+        Announcer.say("Shelf brought back")
     }
 
     func undockIfNeeded() {
@@ -347,6 +356,19 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     func reveal(_ items: [ShelfItem]) {
         let urls = items.compactMap(\.fileURL)
         if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
+    }
+
+    /// Adds whatever is on the clipboard: files copied in Finder, images, links or text.
+    /// With ⌘C in Finder this puts files on a shelf without dragging at all.
+    func paste() {
+        let before = shelf.items.count
+        let read = DropReader.read(NSPasteboard.general) { [weak self] items in
+            guard let self else { return }
+            add(items)
+            let added = shelf.items.count - before
+            showStatus(added == 0 ? "Already on this shelf" : added == 1 ? "Pasted 1 item" : "Pasted \(added) items")
+        }
+        if !read { showStatus("Nothing to paste", isError: true) }
     }
 
     func copyToPasteboard(_ items: [ShelfItem]) {
@@ -399,8 +421,8 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
     // MARK: Keyboard
 
-    /// Space previews, Delete removes, ⌘A selects all, Esc clears the selection,
-    /// arrows move the selection (Shift extends it), Return opens.
+    /// Space previews, Delete removes, ⌘A selects all, ⌘V pastes, ⌘C copies, Esc clears
+    /// the selection, arrows move the selection (Shift extends it), Return opens.
     func handleKey(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch event.keyCode {
@@ -422,6 +444,15 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         default:
             if flags == .command, event.charactersIgnoringModifiers == "a" {
                 selection = Set(shelf.items.map(\.id))
+                return true
+            }
+            if flags == .command, event.charactersIgnoringModifiers == "v" {
+                paste()
+                return true
+            }
+            if flags == .command, event.charactersIgnoringModifiers == "c", !selection.isEmpty {
+                copyToPasteboard(shelf.items(in: selection))
+                showStatus(selection.count == 1 ? "Copied 1 item" : "Copied \(selection.count) items")
                 return true
             }
             return false
@@ -467,5 +498,15 @@ extension ShelfController: QLPreviewPanelDataSource {
 
     nonisolated func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
         MainActor.assumeIsolated { previewURLs[index] as NSURL }
+    }
+}
+
+/// Spoken feedback for VoiceOver users: shelves opening and closing, items arriving, actions
+/// finishing. Harmless when VoiceOver is off.
+enum Announcer {
+    @MainActor
+    static func say(_ text: String) {
+        NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
+                             userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 }

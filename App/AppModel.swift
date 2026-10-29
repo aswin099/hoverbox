@@ -38,6 +38,8 @@ final class AppModel: ObservableObject {
 
         watcher.rules = { [weak self] in Prefs.shakeRules(paused: self?.isShakePaused ?? false) }
         watcher.sensitivity = { Prefs.shakeSensitivity }
+        watcher.trigger = { Prefs.openTrigger }
+        watcher.dwellDelay = { Prefs.dwellDelay }
         watcher.onShake = { [weak self] point in self?.newShelf(at: point) }
         watcher.start()
 
@@ -52,12 +54,29 @@ final class AppModel: ObservableObject {
         let controller = ShelfController(shelf: Shelf(items: items, color: Prefs.newShelfColor), model: self)
         shelves.append(controller)
         controller.show(centeredOn: point)
+        Announcer.say(items.isEmpty ? "Shelf opened. Drop files on it, or press Command V to paste."
+                                    : "Shelf opened with \(Shelf.summary(of: items))")
         return controller
     }
+
+    /// Files sent from Finder's "Add to Hoverbox": a new shelf at the pointer, or the shelf
+    /// the previous batch went to if it arrived a moment ago (promised files arrive one by one).
+    func addFromService(_ items: [ShelfItem]) {
+        if let last = serviceShelf, Date().timeIntervalSince(serviceShelfTime) < 1.5, shelves.contains(where: { $0 === last }) {
+            last.add(items)
+        } else {
+            serviceShelf = newShelf(at: NSEvent.mouseLocation, items: items)
+        }
+        serviceShelfTime = Date()
+    }
+
+    private weak var serviceShelf: ShelfController?
+    private var serviceShelfTime = Date.distantPast
 
     func close(_ controller: ShelfController) {
         controller.panel.orderOut(nil)
         shelves.removeAll { $0 === controller }
+        Announcer.say(controller.shelf.isEmpty ? "Shelf closed" : "Shelf closed. Reopen it from Recently Closed in the menu bar.")
         recent.remember(controller.shelf)
         saveRecent()
         AppPaths.removeUnusedDrops(keeping: shelves.map(\.shelf) + recent.shelves)
@@ -115,6 +134,7 @@ final class AppModel: ObservableObject {
     private func deliver(_ urls: [URL], from source: String, name: String) {
         if let shelf = watchedShelves[source], shelves.contains(where: { $0 === shelf }) {
             shelf.add(urls.map(ShelfItem.file))
+            Announcer.say("\(Shelf.summary(of: urls.map(ShelfItem.file))) added to \(name)")
             shelf.undockIfNeeded()
             shelf.panel.orderFrontRegardless()
             return

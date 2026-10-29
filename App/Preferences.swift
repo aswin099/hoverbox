@@ -6,12 +6,22 @@ extension KeyboardShortcuts.Name {
     static let newShelf = Self("newShelf", default: .init(.space, modifiers: [.option, .shift]))
 }
 
+/// What opens a shelf during a drag.
+enum OpenTrigger: String, CaseIterable {
+    case shake, dwell, both
+
+    var usesShake: Bool { self != .dwell }
+    var usesDwell: Bool { self != .shake }
+}
+
 /// UserDefaults keys and typed accessors. Views use the same keys through @AppStorage.
 enum Prefs {
     static let shakeEnabled = "shakeEnabled"
     static let sensitivity = "shakeSensitivity"
     static let excludedApps = "excludedApps"
     static let keepAfterDragOut = "keepAfterDragOut"
+    static let openTriggerKey = "openTrigger"
+    static let dwellDelayKey = "dwellDelay"
     /// How solid the shelf background is: 0 is clear glass, 1 is the opaque window colour.
     static let backgroundOpacity = "shelfBackgroundOpacity"
     static let defaultBackgroundOpacity = 0.55
@@ -27,6 +37,8 @@ enum Prefs {
             sensitivity: ShakeDetector.Sensitivity.medium.rawValue,
             excludedApps: [String](),
             keepAfterDragOut: false,
+            openTriggerKey: OpenTrigger.shake.rawValue,
+            dwellDelayKey: 1.0,
             backgroundOpacity: defaultBackgroundOpacity,
             favouritesKey: [String](),
             watchedFoldersKey: [String](),
@@ -58,6 +70,15 @@ enum Prefs {
     static var screenshotsToShelf: Bool {
         get { UserDefaults.standard.bool(forKey: screenshotsKey) }
         set { UserDefaults.standard.set(newValue, forKey: screenshotsKey) }
+    }
+
+    static var openTrigger: OpenTrigger {
+        OpenTrigger(rawValue: UserDefaults.standard.string(forKey: openTriggerKey) ?? "") ?? .shake
+    }
+
+    static var dwellDelay: TimeInterval {
+        let value = UserDefaults.standard.double(forKey: dwellDelayKey)
+        return value > 0 ? value : 1.0
     }
 
     static var shakeSensitivity: ShakeDetector.Sensitivity {
