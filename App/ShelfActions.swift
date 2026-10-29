@@ -47,8 +47,26 @@ extension ShelfController {
         shelf.items(in: selection).filter { !missing.contains($0.id) }
     }
 
+    /// The chevron menu: shelf options first, then actions on the selection or everything.
     func showActionsMenu() {
-        let menu = actionsMenu(for: actionTargets)
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        menu.addItem(ActionMenuItem(shelf.isPinned ? "Unpin Shelf" : "Pin Shelf") { [weak self] in self?.togglePin() })
+        menu.addItem(ActionMenuItem("Name Shelf…") { [weak self] in self?.promptForName() })
+        if !shelf.isEmpty {
+            menu.addItem(ActionMenuItem(isExpanded ? "Show as Pile" : "Show All Items") { [weak self] in
+                guard let self else { return }
+                setExpanded(!isExpanded)
+            })
+            menu.addItem(.separator())
+            let header = NSMenuItem.sectionHeader(title: selection.isEmpty ? "All Items" : "Selected Items")
+            menu.addItem(header)
+            let actions = actionsMenu(for: actionTargets)
+            for item in actions.items {
+                actions.removeItem(item)
+                menu.addItem(item)
+            }
+        }
         menu.popUp(positioning: nil, at: panel.mouseLocationOutsideOfEventStream, in: panel.contentView)
     }
 
@@ -277,5 +295,15 @@ extension ShelfController {
 
     private nonisolated static func fileSize(_ url: URL) -> Int64 {
         (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int64) ?? 0
+    }
+}
+
+/// How the expanded shelf lays out items. Remembered across shelves.
+enum ShelfLayout: String {
+    case grid, list
+
+    static var saved: ShelfLayout {
+        get { ShelfLayout(rawValue: UserDefaults.standard.string(forKey: "shelfLayout") ?? "") ?? .grid }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: "shelfLayout") }
     }
 }

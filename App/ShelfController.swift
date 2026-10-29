@@ -19,6 +19,9 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     @Published private(set) var status: (text: String, isError: Bool)?
     /// The Instant Action under the pointer during a drag.
     @Published var hoveredInstant: InstantAction?
+    /// Compact shows the pile and its name; expanded lays out every item.
+    @Published private(set) var isExpanded = false
+    @Published private(set) var layout = ShelfLayout.saved
     private var statusClear: DispatchWorkItem?
 
     let panel = ShelfPanel()
@@ -34,7 +37,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         self.model = model
         super.init()
 
-        let catcher = DropCatcherView(frame: NSRect(origin: .zero, size: ShelfPanel.size))
+        let catcher = DropCatcherView(frame: NSRect(origin: .zero, size: ShelfPanel.compactSize))
         catcher.onDrop = { [weak self] items in self?.add(items) }
         catcher.onTargetChange = { [weak self] targeted in self?.isDropTargeted = targeted }
         catcher.onReorderHover = { [weak self] point in
@@ -66,14 +69,15 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
     /// Shows a restored shelf where it was, or cascaded from the top-right if that screen is gone.
     func showRestored(index: Int) {
-        if let origin = shelf.origin, panel.place(at: NSPoint(x: origin.x, y: origin.y)) {
+        if let origin = shelf.origin, panel.place(topLeft: NSPoint(x: origin.x, y: origin.y)) {
             panel.orderFrontRegardless()
             return
         }
         let bounds = NSScreen.main?.visibleFrame ?? .zero
         let offset = CGFloat(index) * 24
-        show(centeredOn: NSPoint(x: bounds.maxX - ShelfPanel.size.width / 2 - 24 - offset,
-                                 y: bounds.maxY - ShelfPanel.size.height / 2 - 24 - offset))
+        let size = ShelfPanel.compactSize
+        show(centeredOn: NSPoint(x: bounds.maxX - size.width / 2 - 24 - offset,
+                                 y: bounds.maxY - size.height / 2 - 24 - offset))
     }
 
     func bringToFront() {
@@ -82,7 +86,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     }
 
     @objc private func panelMoved() {
-        shelf.origin = .init(x: panel.frame.minX, y: panel.frame.minY)
+        shelf.origin = .init(x: panel.frame.minX, y: panel.frame.maxY)
         if shelf.isPinned { changed() }
     }
 
@@ -99,7 +103,21 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         shelf.remove(ids: ids)
         selection.subtract(ids)
         missing.subtract(ids)
+        if shelf.isEmpty && isExpanded { setExpanded(false) }
         changed()
+    }
+
+    func setExpanded(_ expanded: Bool) {
+        guard expanded != isExpanded, !(expanded && shelf.isEmpty) else { return }
+        isExpanded = expanded
+        panel.resize(to: expanded ? ShelfPanel.expandedSize : ShelfPanel.compactSize,
+                     animated: !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+        if expanded { panel.makeKey() }
+    }
+
+    func setLayout(_ newLayout: ShelfLayout) {
+        layout = newLayout
+        ShelfLayout.saved = newLayout
     }
 
     func move(_ ids: [UUID], to index: Int) {
@@ -108,13 +126,32 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         if shelf.items.map(\.id) != before { changed() }
     }
 
-    /// The list position under a point in the drop view (bottom-left origin).
+    /// The position under a point in the drop view (bottom-left origin): before the first
+    /// item the point is above, or, in the grid, left of within the same row.
     private func insertionIndex(at point: NSPoint) -> Int {
-        let y = ShelfPanel.size.height - point.y
+        let y = (panel.contentView?.bounds.height ?? 0) - point.y
         for (index, item) in shelf.items.enumerated() {
-            if let frame = rowFrames[item.id], y < frame.midY { return index }
+            guard let frame = rowFrames[item.id] else { continue }
+            if layout == .list ? y < frame.midY : (y < frame.minY || (y <= frame.maxY && point.x < frame.midX)) {
+                return index
+            }
         }
         return shelf.items.count
+    }
+
+    /// Asks for a shelf name; an empty name goes back to the automatic one.
+    func promptForName() {
+        let alert = NSAlert()
+        alert.messageText = "Name This Shelf"
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(string: shelf.name ?? "")
+        field.placeholderString = shelf.title
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn { rename(to: field.stringValue) }
     }
 
     /// Renames a file on disk after asking for the new name, and keeps it on the shelf.
@@ -151,7 +188,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
     func togglePin() {
         shelf.isPinned.toggle()
-        shelf.origin = .init(x: panel.frame.minX, y: panel.frame.minY)
+        shelf.origin = .init(x: panel.frame.minX, y: panel.frame.maxY)
         changed()
     }
 

@@ -42,7 +42,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
     private var pointBelowIcon: NSPoint {
         guard let button = statusItem.button, let window = button.window else { return NSEvent.mouseLocation }
         let frame = window.convertToScreen(button.convert(button.bounds, to: nil))
-        return NSPoint(x: frame.midX, y: frame.minY - ShelfPanel.size.height / 2 - 6)
+        return NSPoint(x: frame.midX, y: frame.minY - ShelfPanel.compactSize.height / 2 - 6)
     }
 
     // MARK: Menu

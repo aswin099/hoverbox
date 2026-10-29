@@ -3,7 +3,7 @@ import Foundation
 /// A floating shelf and what's on it. Unpinned shelves are temporary; pinned
 /// ones are saved and come back after a restart.
 public struct Shelf: Identifiable, Codable, Equatable, Sendable {
-    /// Bottom-left corner of the shelf window in screen coordinates.
+    /// Top-left corner of the shelf window in screen coordinates (the shelf grows downward from it).
     public struct Origin: Codable, Equatable, Sendable {
         public var x: Double
         public var y: Double

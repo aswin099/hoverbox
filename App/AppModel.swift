@@ -84,8 +84,35 @@ final class AppModel: ObservableObject {
             } else {
                 newShelf(at: NSEvent.mouseLocation, items: items)
             }
+        #if DEBUG
+        case "debug":
+            debugCommand(components)
+        #endif
         default:
             break
         }
     }
+
+    #if DEBUG
+    /// Development aid: `hoverbox://debug?expand=1&layout=list&snapshot=/dir` sets the newest
+    /// shelf's state and writes a PNG of every shelf window into the folder (`name=` names the newest one).
+    private func debugCommand(_ components: URLComponents) {
+        let query = Dictionary((components.queryItems ?? []).map { ($0.name, $0.value ?? "") }) { $1 }
+        guard let shelf = shelves.last else { return }
+        if let expand = query["expand"] { shelf.setExpanded(expand == "1") }
+        if let layout = query["layout"].flatMap(ShelfLayout.init(rawValue:)) { shelf.setLayout(layout) }
+        if let target = query["target"] { shelf.isDropTargeted = target == "1" }
+        guard let folder = query["snapshot"] else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [shelves] in
+            for (index, controller) in shelves.enumerated() {
+                guard let view = controller.panel.contentView,
+                      let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                let name = query["name"].map { index == shelves.count - 1 ? $0 : "\($0)-\(index)" } ?? "shelf-\(index)"
+                let url = URL(fileURLWithPath: folder).appendingPathComponent(name + ".png")
+                try? rep.representation(using: .png, properties: [:])?.write(to: url)
+            }
+        }
+    }
+    #endif
 }

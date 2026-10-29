@@ -5,6 +5,7 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 **Status: preview 0.2.0** (Phase 1 done, Phase 2 actions in progress). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 ## What works in the preview
+- **Two faces:** a shelf appears compact, as a pile of thumbnails with its name. Drag the pile to take everything; click it or the name to grow it into the full view, a grid or list with names, sizes and PDF page counts. The chevron opens shelf options (pin, name, show all) and the actions.
 - **Shake to open:** shake the pointer while dragging anything (files, images, links, text) and a shelf appears under it. Asks for no permissions.
 - **Hotkey:** ⌥⇧Space opens a shelf at the pointer. Change it in Settings.
 - **Drop anything:** files and folders, images from a browser, photos from Photos, links, and text.
