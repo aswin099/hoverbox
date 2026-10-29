@@ -26,6 +26,12 @@ struct ShelfView: View {
             }
         }
         .frame(width: ShelfPanel.size.width, height: ShelfPanel.size.height)
+        .overlay(alignment: .bottom) {
+            if controller.isDropTargeted {
+                InstantActionStrip(controller: controller)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .coordinateSpace(name: ShelfView.space)
         .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -64,6 +70,13 @@ struct ShelfView: View {
                     .help("Double-click to rename")
             }
             Spacer(minLength: 4)
+            if !shelf.isEmpty {
+                Button { controller.showActionsMenu() } label: {
+                    Image(systemName: "bolt.circle").foregroundStyle(.secondary)
+                }
+                .help(controller.selection.isEmpty ? "Actions for everything on this shelf" : "Actions for the selected items")
+                .accessibilityLabel("Actions")
+            }
             Button { controller.togglePin() } label: {
                 Image(systemName: shelf.isPinned ? "pin.fill" : "pin")
                     .foregroundStyle(shelf.isPinned ? Color.accentColor : .secondary)
@@ -89,9 +102,9 @@ struct ShelfView: View {
                 .foregroundStyle(controller.isDropTargeted ? Color.accentColor : .secondary)
             Text("Drop files here")
                 .font(.system(size: 13, weight: .medium))
-            Text("Then drag them out wherever you need them.")
+            Text(controller.status?.text ?? "Then drag them out wherever you need them.")
                 .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(controller.status?.isError == true ? Color.orange : Color.secondary)
                 .multilineTextAlignment(.center)
         }
         .padding(.horizontal, 16)
@@ -182,11 +195,21 @@ struct ShelfView: View {
     }
 
     private var footer: some View {
-        Text("Space to preview · ⌫ to remove")
-            .font(.system(size: 10))
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 22)
+        Group {
+            if let status = controller.status {
+                Text(status.text)
+                    .foregroundStyle(status.isError ? Color.orange : Color.secondary)
+                    .accessibilityAddTraits(.updatesFrequently)
+            } else {
+                Text("Space to preview · ⌫ to remove").foregroundStyle(.tertiary)
+            }
+        }
+        .font(.system(size: 10))
+        .lineLimit(1)
+        .truncationMode(.middle)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity)
+        .frame(height: 22)
     }
 }
 
@@ -265,5 +288,84 @@ struct ItemIcon: View {
         let request = QLThumbnailGenerator.Request(fileAt: url, size: CGSize(width: size, height: size),
                                                    scale: scale, representationTypes: .thumbnail)
         return try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request).nsImage
+    }
+}
+
+/// Drop targets for Instant Actions, shown along the bottom of a shelf during a drag.
+struct InstantActionStrip: View {
+    @ObservedObject var controller: ShelfController
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(InstantAction.allCases) { action in
+                let isHovered = controller.hoveredInstant == action
+                VStack(spacing: 3) {
+                    Image(systemName: action.symbol).font(.system(size: 15, weight: .medium))
+                    Text(action.title).font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(isHovered ? Color.white : Color.primary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(isHovered ? Color.accentColor : Color.primary.opacity(0.07),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(InstantDropZone(action: action, controller: controller))
+                .help(action.help)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(action.help)
+            }
+        }
+        .padding(8)
+        .background(.thickMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(6)
+    }
+}
+
+/// One Instant Action target. Plain AppKit so it can take drops directly.
+struct InstantDropZone: NSViewRepresentable {
+    let action: InstantAction
+    let controller: ShelfController
+
+    func makeNSView(context: Context) -> InstantDropZoneView {
+        let view = InstantDropZoneView()
+        view.registerForDraggedTypes(DropReader.acceptedTypes)
+        return view
+    }
+
+    func updateNSView(_ view: InstantDropZoneView, context: Context) {
+        view.action = action
+        view.controller = controller
+    }
+}
+
+final class InstantDropZoneView: NSView {
+    var action: InstantAction = .zip
+    weak var controller: ShelfController?
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        // Moving from the shelf onto a zone ends the shelf's own drag session; keep the strip up.
+        controller?.isDropTargeted = true
+        controller?.hoveredInstant = action
+        return .copy
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        // If the pointer goes back onto the shelf, the shelf's draggingEntered turns this on again.
+        if controller?.hoveredInstant == action { controller?.hoveredInstant = nil }
+        controller?.isDropTargeted = false
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard let controller else { return false }
+        let action = self.action
+        controller.hoveredInstant = nil
+        controller.isDropTargeted = false
+        return DropReader.read(sender.draggingPasteboard) { [weak controller] items in
+            controller?.runInstant(action, on: items)
+        }
+    }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) {
+        controller?.hoveredInstant = nil
+        controller?.isDropTargeted = false
     }
 }

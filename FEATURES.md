@@ -2,6 +2,8 @@
 
 Everything Dropover offers, free and Pro, plus what it lacks, **all free in Hoverbox**: no trial, no nag delay, no paid tier. Written 2026-10-28 from Dropover's public App Store listing (v5.3.1), its website and its FAQ, in our own words.
 
+**Built so far (2026-10-28):** all of Phase 1 except 7.6 (updates, decided at release); from Phase 2: 3.1, 3.2, 3.3, 3.4, 3.5, 3.7, 8.5, 8.6, 8.8.
+
 ## What Dropover charges for (and what we do instead)
 | Dropover | Hoverbox |
 |---|---|
@@ -54,7 +56,7 @@ Phase: **1** = MVP, **2** = actions and integrations, **3** = power and polish. 
 | 3.1 | Share via the system Share menu, AirDrop, Mail, Messages | 2 | Windows Share, Nearby Share |
 | 3.2 | Create a ZIP | 2 | Same |
 | 3.3 | Resize images | 2 | WIC |
-| 3.4 | Convert images (PNG, JPEG, HEIC, WebP, TIFF) | 2 | WIC |
+| 3.4 | Convert images (PNG, JPEG, HEIC, TIFF; WebP output needs a bundled encoder, as macOS ImageIO only reads WebP) | 2 | WIC |
 | 3.5 | Extract text from images and PDFs (on-device OCR) | 2 | `Windows.Media.Ocr` |
 | 3.6 | Copy, move to, or reveal in a chosen folder | 2 | Same |
 | 3.7 | **Instant Actions:** drop files straight onto an action (zip, convert, upload, share) without collecting them first | 2 | Same |

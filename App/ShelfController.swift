@@ -15,6 +15,11 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     @Published private(set) var reorderIndex: Int?
     /// Row frames reported by ShelfView, in its top-left-origin coordinate space.
     var rowFrames: [UUID: CGRect] = [:]
+    /// A short message in the footer ("3 images resized"); errors show in orange.
+    @Published private(set) var status: (text: String, isError: Bool)?
+    /// The Instant Action under the pointer during a drag.
+    @Published var hoveredInstant: InstantAction?
+    private var statusClear: DispatchWorkItem?
 
     let panel = ShelfPanel()
     private weak var model: AppModel?
@@ -180,6 +185,16 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         model?.shelfChanged(self)
     }
 
+    /// Shows a footer message; it clears after a few seconds unless `sticky` (used while work runs).
+    func showStatus(_ text: String, isError: Bool = false, sticky: Bool = false) {
+        statusClear?.cancel()
+        status = (text, isError)
+        guard !sticky else { return }
+        let clear = DispatchWorkItem { [weak self] in self?.status = nil }
+        statusClear = clear
+        DispatchQueue.main.asyncAfter(deadline: .now() + (isError ? 6 : 4), execute: clear)
+    }
+
     // MARK: Selection and clicks
 
     /// What a drag starting on `id` carries: the whole selection if `id` is in it, otherwise just that item.
@@ -237,6 +252,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     func menu(for item: ShelfItem) -> NSMenu {
         let targets = dragItems(startingWith: item.id)
         let menu = NSMenu()
+        menu.autoenablesItems = false
         menu.addItem(ActionMenuItem("Open") { [weak self] in targets.forEach { self?.open($0) } })
         if targets.contains(where: { $0.fileURL != nil }) {
             menu.addItem(ActionMenuItem("Quick Look") { [weak self] in
@@ -249,6 +265,12 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
             menu.addItem(ActionMenuItem("Rename…") { [weak self] in self?.rename(item) })
         }
         menu.addItem(ActionMenuItem("Copy") { [weak self] in self?.copyToPasteboard(targets) })
+        menu.addItem(.separator())
+        let actions = actionsMenu(for: targets.filter { !missing.contains($0.id) })
+        for action in actions.items {
+            actions.removeItem(action)
+            menu.addItem(action)
+        }
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem(targets.count > 1 ? "Remove \(targets.count) Items" : "Remove from Shelf") { [weak self] in
             self?.remove(Set(targets.map(\.id)))

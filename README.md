@@ -2,7 +2,7 @@
 
 A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
 
-**Status: preview 0.1.0.** See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
+**Status: preview 0.2.0** (Phase 1 done, Phase 2 actions in progress). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 ## What works in the preview
 - **Shake to open:** shake the pointer while dragging anything (files, images, links, text) and a shelf appears under it. Asks for no permissions.
@@ -15,6 +15,8 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 - **Pin** a shelf to keep it with its items after restarting. Pinned shelves follow files that get renamed or moved, and flag ones that were deleted.
 - **Keys:** Space opens Quick Look, ↑/↓ move the selection (Shift extends it), Return opens, ⌫ removes, ⌘A selects all, Esc clears the selection. Double-click opens an item; double-click the title to rename the shelf.
 - **Right-click** an item: Open, Quick Look, Show in Finder, Rename… (renames the file itself), Copy, Remove.
+- **Actions** (the ⚡ button acts on the selection, or the whole shelf; also in the right-click menu): Share, AirDrop, Compress to ZIP, Unzip, Resize Images (25/50/75% or longest side 800–3840 px), Convert Images To PNG/JPEG/HEIC/TIFF, Compress Images (keeps a result only if it's smaller), Extract Text (images and PDFs, copied to the clipboard). Results are new files added to the shelf and selected; originals are never changed. Image metadata such as location isn't copied into results.
+- **Instant Actions:** while you drag over a shelf, a strip appears at the bottom: drop on AirDrop, Share, ZIP or Text to run it straight away without collecting first.
 - **Accessibility:** VoiceOver labels on every control, full keyboard use, and Reduce Motion respected.
 - **Menu bar:** new shelf, open shelves, close unpinned shelves, pause shake, Settings.
 - **Settings:** shake on/off and sensitivity, hotkey, keep after drag-out, apps where shaking is ignored, launch at login.
