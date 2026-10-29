@@ -174,6 +174,21 @@ final class AppModel: ObservableObject {
     /// shelf's state and writes a PNG of every shelf window into the folder (`name=` names the newest one).
     private func debugCommand(_ components: URLComponents) {
         let query = Dictionary((components.queryItems ?? []).map { ($0.name, $0.value ?? "") }) { $1 }
+        if let tab = query["settings"].flatMap(Int.init), let folder = query["snapshot"] {
+            let window = SettingsWindow.make()
+            (window.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = tab
+            window.orderFront(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                // The frame view includes the toolbar tabs.
+                if let view = window.contentView?.superview, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: rep)
+                    let url = URL(fileURLWithPath: folder).appendingPathComponent("settings-\(tab).png")
+                    try? rep.representation(using: .png, properties: [:])?.write(to: url)
+                }
+                window.close()
+            }
+            return
+        }
         guard let shelf = shelves.last else { return }
         if let expand = query["expand"] { shelf.setExpanded(expand == "1") }
         if let layout = query["layout"].flatMap(ShelfLayout.init(rawValue:)) { shelf.setLayout(layout) }

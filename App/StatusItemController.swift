@@ -111,14 +111,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
     }
 
     func showSettings() {
-        if settingsWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView()))
-            window.title = "Hoverbox Settings"
-            window.styleMask = [.titled, .closable]
-            window.isReleasedWhenClosed = false
-            window.center()
-            settingsWindow = window
-        }
+        if settingsWindow == nil { settingsWindow = SettingsWindow.make() }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
     }
