@@ -24,6 +24,12 @@ public struct ShelfItem: Identifiable, Codable, Equatable, Sendable {
         }
     }
 
+    /// Repoints a file item at `url` and refreshes its bookmark.
+    mutating func pointTo(_ url: URL) {
+        content = .file(url)
+        bookmark = try? url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+    }
+
     public static func file(_ url: URL) -> ShelfItem { ShelfItem(content: .file(url)) }
     public static func text(_ text: String) -> ShelfItem { ShelfItem(content: .text(text)) }
     public static func link(_ url: URL) -> ShelfItem { ShelfItem(content: .link(url)) }

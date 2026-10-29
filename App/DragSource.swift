@@ -10,7 +10,7 @@ struct DragSource: NSViewRepresentable {
     var onClick: (NSEvent.ModifierFlags) -> Void = { _ in }
     var onDoubleClick: () -> Void = {}
     var menu: () -> NSMenu? = { nil }
-    var onEnded: ([UUID], NSDragOperation) -> Void
+    var onEnded: ([UUID], NSDragOperation, NSPoint) -> Void
 
     func makeNSView(context: Context) -> DragSourceView { DragSourceView() }
 
@@ -28,10 +28,10 @@ final class DragSourceView: NSView, NSDraggingSource {
     var onClick: (NSEvent.ModifierFlags) -> Void = { _ in }
     var onDoubleClick: () -> Void = {}
     var menuProvider: () -> NSMenu? = { nil }
-    var onEnded: ([UUID], NSDragOperation) -> Void = { _, _ in }
+    var onEnded: ([UUID], NSDragOperation, NSPoint) -> Void = { _, _, _ in }
 
     private var mouseDownEvent: NSEvent?
-    private var draggedIDs: [UUID] = []
+    private(set) var draggedIDs: [UUID] = []
 
     // Shelves are non-activating panels; take the first click instead of spending it on focus.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -77,7 +77,7 @@ final class DragSourceView: NSView, NSDraggingSource {
     }
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
-        onEnded(draggedIDs, operation)
+        onEnded(draggedIDs, operation, screenPoint)
         draggedIDs = []
     }
 }

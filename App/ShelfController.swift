@@ -11,6 +11,10 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     @Published var selection: Set<UUID> = []
     @Published private(set) var missing: Set<UUID> = []
     @Published var isDropTargeted = false
+    /// Where a reorder drag would land, as an index into the items; nil when not reordering.
+    @Published private(set) var reorderIndex: Int?
+    /// Row frames reported by ShelfView, in its top-left-origin coordinate space.
+    var rowFrames: [UUID: CGRect] = [:]
 
     let panel = ShelfPanel()
     private weak var model: AppModel?
@@ -28,6 +32,15 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         let catcher = DropCatcherView(frame: NSRect(origin: .zero, size: ShelfPanel.size))
         catcher.onDrop = { [weak self] items in self?.add(items) }
         catcher.onTargetChange = { [weak self] targeted in self?.isDropTargeted = targeted }
+        catcher.onReorderHover = { [weak self] point in
+            guard let self else { return }
+            let index = point.map { self.insertionIndex(at: $0) }
+            if index != reorderIndex { reorderIndex = index }
+        }
+        catcher.onReorderDrop = { [weak self] ids, point in
+            guard let self else { return }
+            move(ids, to: insertionIndex(at: point))
+        }
         let host = NSHostingView(rootView: ShelfView(controller: self))
         host.frame = catcher.bounds
         host.autoresizingMask = [.width, .height]
@@ -84,9 +97,51 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         changed()
     }
 
-    func move(_ id: UUID, to index: Int) {
-        shelf.move(id, to: index)
-        changed()
+    func move(_ ids: [UUID], to index: Int) {
+        let before = shelf.items.map(\.id)
+        shelf.move(ids, to: index)
+        if shelf.items.map(\.id) != before { changed() }
+    }
+
+    /// The list position under a point in the drop view (bottom-left origin).
+    private func insertionIndex(at point: NSPoint) -> Int {
+        let y = ShelfPanel.size.height - point.y
+        for (index, item) in shelf.items.enumerated() {
+            if let frame = rowFrames[item.id], y < frame.midY { return index }
+        }
+        return shelf.items.count
+    }
+
+    /// Renames a file on disk after asking for the new name, and keeps it on the shelf.
+    func rename(_ item: ShelfItem) {
+        guard let url = item.fileURL else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename “\(url.lastPathComponent)”"
+        alert.informativeText = "This renames the file itself, wherever it is."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(string: url.lastPathComponent)
+        field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        // Select the name without its extension, like Finder does.
+        DispatchQueue.main.async {
+            let stem = (url.lastPathComponent as NSString).deletingPathExtension
+            field.currentEditor()?.selectedRange = NSRange(location: 0, length: (stem as NSString).length)
+        }
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !name.contains("/"), name != url.lastPathComponent else { return }
+        let destination = url.deletingLastPathComponent().appendingPathComponent(name)
+        do {
+            try FileManager.default.moveItem(at: url, to: destination)
+            shelf.updateFile(item.id, to: destination)
+            changed()
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     func togglePin() {
@@ -168,8 +223,9 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
     /// Called when a drag out of this shelf finishes. Dragged items leave the
     /// shelf unless it's pinned, the user chose to keep items, or Shift was held.
-    func didDragOut(ids: [UUID], operation: NSDragOperation) {
-        guard !operation.isEmpty else { return }
+    func didDragOut(ids: [UUID], operation: NSDragOperation, at screenPoint: NSPoint) {
+        // Ending over this shelf means a reorder (handled on drop), not a drag out.
+        guard !operation.isEmpty, !panel.frame.contains(screenPoint) else { return }
         if shelf.isPinned || Prefs.shouldKeepAfterDragOut || NSEvent.modifierFlags.contains(.shift) {
             refreshFiles()
             return
@@ -189,6 +245,9 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
             })
             menu.addItem(ActionMenuItem("Show in Finder") { [weak self] in self?.reveal(targets) })
         }
+        if targets.count == 1, item.fileURL != nil, !missing.contains(item.id) {
+            menu.addItem(ActionMenuItem("Rename…") { [weak self] in self?.rename(item) })
+        }
         menu.addItem(ActionMenuItem("Copy") { [weak self] in self?.copyToPasteboard(targets) })
         menu.addItem(.separator())
         menu.addItem(ActionMenuItem(targets.count > 1 ? "Remove \(targets.count) Items" : "Remove from Shelf") { [weak self] in
@@ -199,12 +258,19 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
     // MARK: Keyboard
 
-    /// Space previews, Delete removes, ⌘A selects all, Esc clears the selection.
+    /// Space previews, Delete removes, ⌘A selects all, Esc clears the selection,
+    /// arrows move the selection (Shift extends it), Return opens.
     func handleKey(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch event.keyCode {
         case 49:
             toggleQuickLook()
+            return true
+        case 125, 126:
+            moveSelection(by: event.keyCode == 125 ? 1 : -1, extending: flags.contains(.shift))
+            return true
+        case 36, 76:
+            if !selection.isEmpty { shelf.items(in: selection).prefix(10).forEach { open($0) } }
             return true
         case 51, 117:
             remove(selection)
@@ -218,6 +284,18 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
                 return true
             }
             return false
+        }
+    }
+
+    private func moveSelection(by step: Int, extending: Bool) {
+        guard !shelf.items.isEmpty else { return }
+        let current = lastClicked.flatMap { id in shelf.items.firstIndex { $0.id == id } }
+        let next = current.map { min(max(0, $0 + step), shelf.items.count - 1) } ?? (step > 0 ? 0 : shelf.items.count - 1)
+        let id = shelf.items[next].id
+        if extending { selection.insert(id) } else { selection = [id] }
+        lastClicked = id
+        if QLPreviewPanel.sharedPreviewPanelExists(), QLPreviewPanel.shared().isVisible {
+            QLPreviewPanel.shared().reloadData()
         }
     }
 

@@ -38,6 +38,32 @@ final class ShelfTests: XCTestCase {
         XCTAssertEqual(shelf.items.map(\.displayName), ["c", "a"])
     }
 
+    func testMoveBlockKeepsOrder() {
+        var shelf = Shelf(items: ["a", "b", "c", "d", "e"].map { ShelfItem.text($0) })
+        let ids = shelf.items.map(\.id)
+        shelf.move([ids[3], ids[1]], to: 0)
+        XCTAssertEqual(shelf.items.map(\.displayName), ["b", "d", "a", "c", "e"])
+        shelf.move([ids[0], ids[2]], to: 5)
+        XCTAssertEqual(shelf.items.map(\.displayName), ["b", "d", "e", "a", "c"])
+        // Dropping a block onto one of its own members leaves it in place.
+        shelf.move([ids[1], ids[3]], to: 1)
+        XCTAssertEqual(shelf.items.map(\.displayName), ["b", "d", "e", "a", "c"])
+        shelf.move([ids[2]], to: 0)
+        XCTAssertEqual(shelf.items.map(\.displayName), ["c", "b", "d", "e", "a"])
+    }
+
+    func testUpdateFileFollowsRename() throws {
+        let original = try makeFile("draft.txt")
+        var shelf = Shelf(items: [.file(original), .text("t")])
+        let renamed = tempDir.appendingPathComponent("final.txt")
+        try FileManager.default.moveItem(at: original, to: renamed)
+        shelf.updateFile(shelf.items[0].id, to: renamed)
+        shelf.updateFile(shelf.items[1].id, to: renamed)
+        XCTAssertEqual(shelf.items[0].fileURL, renamed)
+        XCTAssertEqual(shelf.items[1].content, .text("t"))
+        XCTAssertFalse(shelf.items[0].refreshed().isMissing)
+    }
+
     func testItemsInSelectionKeepShelfOrder() {
         let shelf = Shelf(items: [.text("a"), .text("b"), .text("c")])
         let picked: Set = [shelf.items[2].id, shelf.items[0].id]

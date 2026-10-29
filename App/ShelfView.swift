@@ -8,6 +8,7 @@ struct ShelfView: View {
     @ObservedObject var controller: ShelfController
     @State private var isRenaming = false
     @State private var draftName = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shelf: Shelf { controller.shelf }
 
@@ -25,14 +26,20 @@ struct ShelfView: View {
             }
         }
         .frame(width: ShelfPanel.size.width, height: ShelfPanel.size.height)
+        .coordinateSpace(name: ShelfView.space)
+        .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(controller.isDropTargeted ? Color.accentColor : Color.primary.opacity(0.12),
                               lineWidth: controller.isDropTargeted ? 2 : 0.5)
         )
-        .animation(.easeOut(duration: 0.12), value: controller.isDropTargeted)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: controller.isDropTargeted)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Shelf: \(shelf.title)")
     }
+
+    static let space = "shelf"
 
     private var header: some View {
         HStack(spacing: 8) {
@@ -62,10 +69,12 @@ struct ShelfView: View {
                     .foregroundStyle(shelf.isPinned ? Color.accentColor : .secondary)
             }
             .help(shelf.isPinned ? "Unpin shelf" : "Pin shelf: keep it and its items after dragging out and after restarting")
+            .accessibilityLabel(shelf.isPinned ? "Unpin shelf" : "Pin shelf")
             Button { controller.close() } label: {
                 Image(systemName: "xmark").foregroundStyle(.secondary)
             }
             .help("Close shelf")
+            .accessibilityLabel("Close shelf")
         }
         .buttonStyle(.plain)
         .font(.system(size: 12))
@@ -126,29 +135,50 @@ struct ShelfView: View {
         .contentShape(Rectangle())
         .overlay(
             DragSource(items: { controller.shelf.items },
-                       onEnded: { ids, operation in controller.didDragOut(ids: ids, operation: operation) })
+                       onEnded: { controller.didDragOut(ids: $0, operation: $1, at: $2) })
         )
         .help("Drag to move everything on this shelf")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Drag all \(shelf.items.count) items")
     }
 
     private var itemList: some View {
         ScrollView {
-            LazyVStack(spacing: 2) {
-                ForEach(shelf.items) { item in
+            VStack(spacing: 2) {
+                ForEach(Array(shelf.items.enumerated()), id: \.element.id) { index, item in
                     ItemRow(item: item,
                             isSelected: controller.selection.contains(item.id),
                             isMissing: controller.missing.contains(item.id))
+                        .overlay(alignment: .top) { insertionLine(visible: controller.reorderIndex == index, offset: -2) }
+                        .overlay(alignment: .bottom) {
+                            insertionLine(visible: index == shelf.items.count - 1 && controller.reorderIndex == shelf.items.count,
+                                          offset: 2)
+                        }
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: RowFramesKey.self,
+                                                   value: [item.id: proxy.frame(in: .named(ShelfView.space))])
+                        })
                         .overlay(
                             DragSource(items: { controller.dragItems(startingWith: item.id) },
                                        onClick: { controller.click(item.id, modifiers: $0) },
                                        onDoubleClick: { controller.open(item) },
                                        menu: { controller.menu(for: item) },
-                                       onEnded: { ids, operation in controller.didDragOut(ids: ids, operation: operation) })
+                                       onEnded: { controller.didDragOut(ids: $0, operation: $1, at: $2) })
                         )
                 }
             }
             .padding(6)
         }
+    }
+
+    private func insertionLine(visible: Bool, offset: CGFloat) -> some View {
+        Capsule()
+            .fill(Color.accentColor)
+            .frame(height: 2)
+            .padding(.horizontal, 4)
+            .offset(y: offset)
+            .opacity(visible ? 1 : 0)
+            .accessibilityHidden(true)
     }
 
     private var footer: some View {
@@ -157,6 +187,14 @@ struct ShelfView: View {
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity)
             .frame(height: 22)
+    }
+}
+
+/// Collects each row's frame so the controller can turn a drop point into a list position.
+struct RowFramesKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }
 

@@ -10,10 +10,12 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 - **Drop anything:** files and folders, images from a browser, photos from Photos, links, and text.
 - **Drag out:** drag the pile at the top to move everything, or drag single items. Select with click, ⌘-click or Shift-click and drag the selection. In Finder, Option copies and Command moves.
 - **After dragging out**, items leave the shelf and an empty shelf closes. Hold Shift as you drop, pin the shelf, or turn on "Keep items" in Settings to keep them.
-- **Multiple shelves**, each movable by its background.
+- **Drop onto the menu bar icon** to get a new shelf just below it.
+- **Multiple shelves**, each movable by its background. Drag items within a shelf to reorder them; drag them onto another shelf to move them there.
 - **Pin** a shelf to keep it with its items after restarting. Pinned shelves follow files that get renamed or moved, and flag ones that were deleted.
-- **Keys:** Space opens Quick Look, ⌫ removes, ⌘A selects all, Esc clears the selection. Double-click opens an item; double-click the title to rename the shelf.
-- **Right-click** an item: Open, Quick Look, Show in Finder, Copy, Remove.
+- **Keys:** Space opens Quick Look, ↑/↓ move the selection (Shift extends it), Return opens, ⌫ removes, ⌘A selects all, Esc clears the selection. Double-click opens an item; double-click the title to rename the shelf.
+- **Right-click** an item: Open, Quick Look, Show in Finder, Rename… (renames the file itself), Copy, Remove.
+- **Accessibility:** VoiceOver labels on every control, full keyboard use, and Reduce Motion respected.
 - **Menu bar:** new shelf, open shelves, close unpinned shelves, pause shake, Settings.
 - **Settings:** shake on/off and sensitivity, hotkey, keep after drag-out, apps where shaking is ignored, launch at login.
 - **Links:** `open "hoverbox://new"` opens a shelf; `open "hoverbox://add?path=/path/to/file"` adds files to the newest shelf.

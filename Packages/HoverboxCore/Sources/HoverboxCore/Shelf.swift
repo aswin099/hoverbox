@@ -50,10 +50,25 @@ public struct Shelf: Identifiable, Codable, Equatable, Sendable {
 
     /// Moves one item so it ends up before the item now at `destination` (or last).
     public mutating func move(_ id: UUID, to destination: Int) {
-        guard let from = items.firstIndex(where: { $0.id == id }) else { return }
-        let item = items.remove(at: from)
-        let target = destination > from ? destination - 1 : destination
-        items.insert(item, at: min(max(0, target), items.count))
+        move([id], to: destination)
+    }
+
+    /// Moves a group of items, keeping their order, so they end up just before
+    /// the item now at `destination` (or last when `destination` is past the end).
+    public mutating func move(_ ids: [UUID], to destination: Int) {
+        let moving = Set(ids)
+        let block = items.filter { moving.contains($0.id) }
+        guard !block.isEmpty else { return }
+        let anchor = items[min(max(0, destination), items.count)...].first { !moving.contains($0.id) }?.id
+        items.removeAll { moving.contains($0.id) }
+        let index = anchor.flatMap { id in items.firstIndex { $0.id == id } } ?? items.count
+        items.insert(contentsOf: block, at: index)
+    }
+
+    /// Points a file item at a new location, for example after renaming the file.
+    public mutating func updateFile(_ id: UUID, to url: URL) {
+        guard let index = items.firstIndex(where: { $0.id == id }), items[index].fileURL != nil else { return }
+        items[index].pointTo(url)
     }
 
     /// Items in shelf order, limited to `ids` (all items when `ids` is empty).
