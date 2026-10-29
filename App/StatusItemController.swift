@@ -31,10 +31,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
     }
 
     private func updateIcon() {
-        // Template glyphs from Assets.xcassets (drawn by tools/render-icon.swift); dimmed while paused.
-        let image = NSImage(named: model.isShakePaused ? "MenuBarIconPaused" : "MenuBarIcon")
+        // A filled box while shake is on, an outlined one while it's paused.
+        let name = model.isShakePaused ? "shippingbox" : "shippingbox.fill"
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Hoverbox")
         image?.isTemplate = true
-        image?.accessibilityDescription = "Hoverbox"
         statusItem.button?.image = image
     }
 

@@ -1,6 +1,6 @@
 // Renders Hoverbox's icons from vector drawing code, so macOS and Windows stay in sync.
 // Usage: swift tools/render-icon.swift App/Assets.xcassets [Windows/src/Hoverbox.App/Assets]
-//   macOS:   AppIcon (all sizes), MenuBarIcon and MenuBarIconPaused template glyphs
+//   macOS:   AppIcon (all sizes). The menu bar uses the system "shippingbox" symbol instead.
 //   Windows: Hoverbox.ico (exe and windows), TrayIcon.ico and TrayIconPaused.ico (notification area)
 // Design: deep ocean tile, an open cardboard box hovering above its shadow, a photo and a
 // document rising out of it, one coral dot.
@@ -185,35 +185,6 @@ func drawCard(center: NSPoint, size: NSSize, angle: CGFloat) {
     NSGraphicsContext.restoreGraphicsState()
 }
 
-/// Menu bar glyph: a template image (black on clear) that macOS tints for light and dark menu bars.
-/// The open box with a card rising out of it, floating above a short shadow bar.
-func drawGlyph(alpha: CGFloat = 1) {
-    // 18×18 point coordinate space.
-    NSColor.black.withAlphaComponent(alpha).setFill()
-    // Card rising out of the box, tilted.
-    NSGraphicsContext.saveGraphicsState()
-    let t = NSAffineTransform()
-    t.translateX(by: 9.6, yBy: 12.2)
-    t.rotate(byDegrees: -10)
-    t.concat()
-    NSBezierPath(roundedRect: NSRect(x: -3.4, y: -4.2, width: 6.8, height: 8.4), xRadius: 1.3, yRadius: 1.3).fill()
-    NSGraphicsContext.current?.compositingOperation = .clear
-    NSBezierPath(roundedRect: NSRect(x: -1.9, y: 1.0, width: 3.8, height: 1.0), xRadius: 0.5, yRadius: 0.5).fill()
-    NSGraphicsContext.current?.compositingOperation = .sourceOver
-    NSGraphicsContext.restoreGraphicsState()
-    // Open flaps on both sides.
-    polygon([(2.6, 9.6), (5.4, 9.6), (3.6, 12.4), (0.6, 12.4)]).fill()
-    polygon([(12.6, 9.6), (15.4, 9.6), (17.4, 12.4), (14.4, 12.4)]).fill()
-    // Clear a gap above the box body so the card reads as inside it.
-    NSGraphicsContext.current?.compositingOperation = .clear
-    NSRect(x: 2.4, y: 8.4, width: 13.2, height: 1.2).fill()
-    NSGraphicsContext.current?.compositingOperation = .sourceOver
-    // Box body.
-    NSBezierPath(roundedRect: NSRect(x: 2.6, y: 4.0, width: 12.8, height: 4.4), xRadius: 1.4, yRadius: 1.4).fill()
-    // Shadow bar, separated from the box: the hover.
-    NSBezierPath(roundedRect: NSRect(x: 5.0, y: 0.8, width: 8.0, height: 1.4), xRadius: 0.7, yRadius: 0.7).fill()
-}
-
 /// Windows icons fill more of their square than macOS icons and have gentler corners.
 func drawWindowsIcon() {
     let scale: CGFloat = 952 / 824  // macOS tile (824) grown to a 952 tile, 36 units from each edge.
@@ -282,25 +253,12 @@ showDetail = true
 try #"{"images":[\#(images.joined(separator: ","))],"info":{"author":"xcode","version":1}}"#
     .write(to: appIcon.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
 
-// The paused variant is the same glyph at reduced opacity.
-for (set, alpha) in [("MenuBarIcon", 1.0), ("MenuBarIconPaused", 0.4)] as [(String, CGFloat)] {
-    let glyph = catalog.appendingPathComponent("\(set).imageset")
-    try? fm.createDirectory(at: glyph, withIntermediateDirectories: true)
-    for scale in [1, 2] {
-        let name = "menubar\(scale == 2 ? "@2x" : "").png"
-        try png(pixels: 18 * scale, points: 18, draw: { drawGlyph(alpha: alpha) }).write(to: glyph.appendingPathComponent(name))
-    }
-    try #"{"images":[{"filename":"menubar.png","idiom":"mac","scale":"1x"},{"filename":"menubar@2x.png","idiom":"mac","scale":"2x"}],"info":{"author":"xcode","version":1},"properties":{"template-rendering-intent":"template"}}"#
-        .write(to: glyph.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
-}
-
-print("Wrote \(images.count) app icon sizes and the menu bar glyphs to \(catalog.path)")
+print("Wrote \(images.count) app icon sizes to \(catalog.path)")
 
 // Previews for checking the design by eye (not used by the app).
 if let previewDir = ProcessInfo.processInfo.environment["ICON_PREVIEW_DIR"] {
     let dir = URL(fileURLWithPath: previewDir)
     try png(pixels: 512, points: 1024, draw: drawIcon).write(to: dir.appendingPathComponent("icon-512.png"))
-    try png(pixels: 144, points: 18, draw: { drawGlyph() }).write(to: dir.appendingPathComponent("glyph-large.png"))
 }
 
 // Windows
