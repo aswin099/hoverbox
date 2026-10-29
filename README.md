@@ -45,6 +45,16 @@ xcodegen generate
 open Hoverbox.xcodeproj
 ```
 
+Install a release build into /Applications (so it shows in Launchpad and Spotlight):
+
+```sh
+xcodebuild -project Hoverbox.xcodeproj -scheme Hoverbox -configuration Release -derivedDataPath build/DerivedData CODE_SIGN_IDENTITY=- build
+osascript -e 'quit app "Hoverbox"'; ditto build/DerivedData/Build/Products/Release/Hoverbox.app /Applications/Hoverbox.app
+open /Applications/Hoverbox.app
+```
+
+Hoverbox is a menu bar app: it has no Dock icon. Look for the box in the menu bar.
+
 Run the core tests:
 
 ```sh

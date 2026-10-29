@@ -194,6 +194,19 @@ final class AppModel: ObservableObject {
     /// shelf's state and writes a PNG of every shelf window into the folder (`name=` names the newest one).
     private func debugCommand(_ components: URLComponents) {
         let query = Dictionary((components.queryItems ?? []).map { ($0.name, $0.value ?? "") }) { $1 }
+        if let folder = query["windows"] {
+            let lines = NSApp.windows.map { window in
+                "\(type(of: window)) visible=\(window.isVisible) onScreen=\(window.occlusionState.contains(.visible)) "
+                    + "frame=\(Int(window.frame.minX)),\(Int(window.frame.minY)) \(Int(window.frame.width))x\(Int(window.frame.height))"
+            }
+            try? lines.joined(separator: "\n").write(toFile: folder + "/windows.txt", atomically: true, encoding: .utf8)
+            for (index, window) in NSApp.windows.enumerated() {
+                guard let view = window.contentView, let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { continue }
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: folder + "/window-\(index).png"))
+            }
+            return
+        }
         if let tab = query["settings"].flatMap(Int.init), let folder = query["snapshot"] {
             let window = SettingsWindow.make()
             (window.contentViewController as? NSTabViewController)?.selectedTabViewItemIndex = tab
