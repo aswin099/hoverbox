@@ -7,8 +7,10 @@ import SwiftUI
 final class ShelfPanel: NSPanel {
     /// The visible card: the pile with its name, as a shelf first appears.
     static let compactCard = NSSize(width: 216, height: 236)
-    /// The visible card with every item laid out, after clicking the name.
-    static let expandedCard = NSSize(width: 452, height: 372)
+    /// The visible card with every item laid out, after clicking the name (Settings › Shelves › Size).
+    static var expandedCard: NSSize {
+        Prefs.largeShelves ? NSSize(width: 600, height: 480) : NSSize(width: 452, height: 372)
+    }
     /// Clear space around the card for its shadow. The card draws its own shadow,
     /// so it stays smooth while the card animates.
     static let margin: CGFloat = 22
@@ -16,7 +18,7 @@ final class ShelfPanel: NSPanel {
     static let compactSize = window(for: compactCard)
     /// A shelf tucked against a screen edge.
     static let tabSize = NSSize(width: 34, height: 120)
-    static let expandedSize = window(for: expandedCard)
+    static var expandedSize: NSSize { window(for: expandedCard) }
 
     static func window(for card: NSSize) -> NSSize {
         NSSize(width: card.width + margin * 2, height: card.height + margin * 2)

@@ -2,7 +2,7 @@
 
 Everything Dropover offers, free and Pro, plus what it lacks, **all free in Hoverbox**: no trial, no nag delay, no paid tier. Written 2026-10-28 from Dropover's public App Store listing (v5.3.1), its website and its FAQ, in our own words.
 
-**Built so far (2026-10-28):** all of Phase 1 except 7.6 (updates, decided at release); from Phase 2: 1.9, 1.11, 1.12, 1.13, 1.14 (copy), 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 5.1, 5.2, 8.4, 8.5, 8.6, 8.8. Also: 1.14 paste, 2.8 Finder Services (with a shortcut), and accessibility additions (hold still to open, VoiceOver announcements). Still open in Phase 2: 1.17, 2.7, 2.9, 7.2, 7.3, 8.2, 8.3, 8.10.
+**Built so far (2026-10-28):** all of Phase 1 except 7.6 (updates, decided at release); from Phase 2: 1.9, 1.11, 1.12, 1.13, 1.14 (copy), 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 5.1, 5.2, 8.4, 8.5, 8.6, 8.8. Also: 1.14 paste, 2.8 Finder Services (with a shortcut), and accessibility additions (hold still to open, VoiceOver announcements). Then (0.4.0): 1.17, 2.7, 2.9, 7.2, 7.3, 8.2, 8.3, 8.10, so **Phase 2 is complete**. Next: Phase 3, release, Windows.
 
 ## What Dropover charges for (and what we do instead)
 | Dropover | Hoverbox |

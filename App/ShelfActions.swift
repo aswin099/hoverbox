@@ -341,6 +341,11 @@ extension ShelfController {
     func run(_ working: String,
              work: @escaping @Sendable () throws -> (items: [ShelfItem], message: String),
              after: @escaping @MainActor ([ShelfItem]) -> Void = { _ in }) {
+        if let free = AppPaths.freeSpace, free < 500_000_000 {
+            let amount = ByteCountFormatter.string(fromByteCount: free, countStyle: .file)
+            showStatus("Only \(amount) free on this disk. Free up some space first.", isError: true)
+            return
+        }
         showStatus(working, sticky: true)
         Task.detached(priority: .userInitiated) { [weak self] in
             let result = Result { try work() }

@@ -22,6 +22,7 @@ targets:
     dependencies:
       - package: HoverboxCore
       - package: KeyboardShortcuts
+      - target: HoverboxShare
     info:
       path: App/Info.plist
       properties:
@@ -54,12 +55,48 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.arcova.hoverbox
         SWIFT_VERSION: "5.0"
-        MARKETING_VERSION: "0.3.0"
+        MARKETING_VERSION: "0.4.0"
         CURRENT_PROJECT_VERSION: "1"
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_STYLE: Automatic
         # Not sandboxed yet: shelves hold references to files anywhere on disk.
         # The App Store build will need security-scoped bookmarks instead.
+  # "Hoverbox" in every app's Share menu. A sandboxed extension (required for extensions)
+  # that hands what was shared to the app through a hoverbox:// link.
+  HoverboxShare:
+    type: app-extension
+    platform: macOS
+    sources:
+      - ShareExtension
+    info:
+      path: ShareExtension/Info.plist
+      properties:
+        CFBundleDisplayName: Hoverbox
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSHumanReadableCopyright: "Copyright © 2026 Aswin Ravichandran. MIT License."
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).ShareViewController"
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 100
+              NSExtensionActivationSupportsImageWithMaxCount: 100
+              NSExtensionActivationSupportsWebURLWithMaxCount: 10
+              NSExtensionActivationSupportsText: true
+    entitlements:
+      path: ShareExtension/HoverboxShare.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.arcova.hoverbox.share
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "0.4.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
 schemes:
   Hoverbox:
     build:

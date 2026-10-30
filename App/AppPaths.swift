@@ -15,6 +15,13 @@ enum AppPaths {
 
     static var drops: URL { support.appendingPathComponent("Drops", isDirectory: true) }
 
+    /// Space left on the disk Hoverbox writes action results and copies to.
+    static var freeSpace: Int64? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        return (try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage
+    }
+
     /// A fresh folder for one drop, so names from different drops never collide.
     static func newDropFolder() -> URL {
         let folder = drops.appendingPathComponent(UUID().uuidString, isDirectory: true)

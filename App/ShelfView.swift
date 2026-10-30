@@ -332,7 +332,8 @@ struct ExpandedShelf: View {
     }
 
     private var grid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: Prefs.largeShelves ? 4 : 3),
+                  spacing: 6) {
             ForEach(Array(shelf.items.enumerated()), id: \.element.id) { index, item in
                 ItemTile(item: item,
                          isSelected: controller.selection.contains(item.id),

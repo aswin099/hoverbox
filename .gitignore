@@ -5,6 +5,7 @@ DerivedData/
 xcuserdata/
 *.xcodeproj
 App/Info.plist
+ShareExtension/Info.plist
 
 # Local tool settings
 .claude/settings.local.json

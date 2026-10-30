@@ -1,9 +1,36 @@
+import AppKit
 import Foundation
 import HoverboxCore
 import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
     static let newShelf = Self("newShelf", default: .init(.space, modifiers: [.option, .shift]))
+    static let nextShelf = Self("nextShelf", default: .init(.tab, modifiers: [.option, .shift]))
+    // Actions on the shelf you used last; no defaults, so they never clash with other apps.
+    static let actionZip = Self("actionZip")
+    static let actionText = Self("actionExtractText")
+    static let actionCompress = Self("actionCompressImages")
+    static let actionResize = Self("actionResizeHalf")
+    static let actionAirDrop = Self("actionAirDrop")
+    static let actionShare = Self("actionShare")
+}
+
+/// Where shelves opened from the shortcut, the menu bar or Finder appear. Shelves opened by
+/// shaking or holding still always appear at the pointer, where the drag is.
+enum ShelfPlacement: String, CaseIterable {
+    case pointer, topRight, center
+}
+
+enum ShelfAppearance: String, CaseIterable {
+    case system, light, dark
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
 }
 
 /// What opens a shelf during a drag.
@@ -30,6 +57,11 @@ enum Prefs {
     static let screenshotsKey = "screenshotsToShelf"
     /// Colour new shelves start with ("" for none).
     static let newShelfColorKey = "newShelfColor"
+    static let keepCopiesKey = "keepCopies"
+    static let placementKey = "newShelfPlacement"
+    static let appearanceKey = "shelfAppearance"
+    static let largeShelvesKey = "largeShelves"
+    static let openExpandedKey = "openExpanded"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -43,6 +75,11 @@ enum Prefs {
             favouritesKey: [String](),
             watchedFoldersKey: [String](),
             screenshotsKey: false,
+            keepCopiesKey: false,
+            placementKey: ShelfPlacement.pointer.rawValue,
+            appearanceKey: ShelfAppearance.system.rawValue,
+            largeShelvesKey: false,
+            openExpandedKey: false,
         ])
     }
 
@@ -86,6 +123,16 @@ enum Prefs {
     }
 
     static var shouldKeepAfterDragOut: Bool { UserDefaults.standard.bool(forKey: keepAfterDragOut) }
+    /// Copy mode: files dropped on a shelf are copied, so originals are never touched.
+    static var keepCopies: Bool { UserDefaults.standard.bool(forKey: keepCopiesKey) }
+    static var placement: ShelfPlacement {
+        ShelfPlacement(rawValue: UserDefaults.standard.string(forKey: placementKey) ?? "") ?? .pointer
+    }
+    static var appearance: ShelfAppearance {
+        ShelfAppearance(rawValue: UserDefaults.standard.string(forKey: appearanceKey) ?? "") ?? .system
+    }
+    static var largeShelves: Bool { UserDefaults.standard.bool(forKey: largeShelvesKey) }
+    static var openExpanded: Bool { UserDefaults.standard.bool(forKey: openExpandedKey) }
 
     static func shakeRules(paused: Bool) -> ShakeRules {
         ShakeRules(isEnabled: UserDefaults.standard.bool(forKey: shakeEnabled) && !paused,

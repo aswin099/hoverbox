@@ -2,13 +2,18 @@
 
 A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
 
-**Status: preview 0.3.0** (Phase 1 done, most of Phase 2 done). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
+**Status: preview 0.4.0** (Phases 1 and 2 done). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 ## What works in the preview
 - **Two faces:** a shelf appears compact, as a pile of thumbnails with its name. Drag the pile to take everything; click it or the name to grow it into the full view, a grid or list with names, sizes and PDF page counts. The chevron opens shelf options (pin, name, show all) and the actions.
 - **Shake to open:** shake the pointer while dragging anything (files, images, links, text) and a shelf appears under it. Asks for no permissions.
 - **Hold still to open:** instead of (or as well as) shaking, pause the pointer during a drag for 0.5–2 s (Settings › Opening). Made for head pointers, dwell control and tremors; it never triggers over a shelf you're dropping onto.
 - **No dragging needed:** in Finder, right-click › **Add to Hoverbox** (or press ⇧⌘B; change it in System Settings › Keyboard › Keyboard Shortcuts › Services). Or copy files with ⌘C and press ⌘V on a shelf. ⌘C on a shelf copies the selected items.
+- **Share menu:** "Hoverbox" appears in every app's Share menu (files, images, links, text). If it doesn't, turn it on in System Settings › General › Login Items & Extensions › Sharing.
+- **Shortcut gestures:** press New Shelf twice quickly to put the clipboard on the new shelf; hold it to bring back what you last dragged out. ⌥⇧Tab switches between shelves. Optional shortcuts for ZIP, Extract Text, Compress Images, Resize 50%, AirDrop and Share work on the shelf you used last (Settings › Shortcuts).
+- **Copy mode** (Settings › Shelves): keep copies instead of references, so originals are never moved or changed.
+- **Look and placement:** light, dark or system appearance; regular or large expanded size; shelves from the shortcut or Finder can open at the pointer, top-right or centre; optionally open straight into "all items".
+- **Low-disk check:** actions and copy mode stop with a message when less than 500 MB is free.
 - **VoiceOver:** shelves announce when they open or close, when items arrive and when actions finish.
 - **Hotkey:** ⌥⇧Space opens a shelf at the pointer. Change it in Settings.
 - **Drop anything:** files and folders, images from a browser, photos from Photos, links, and text.

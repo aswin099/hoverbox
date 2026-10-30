@@ -68,6 +68,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         catcher.addSubview(host)
         panel.contentView = catcher
         panel.controller = self
+        panel.appearance = Prefs.appearance.nsAppearance
 
         NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
                                                name: NSWindow.didMoveNotification, object: panel)
@@ -106,9 +107,48 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     // MARK: Editing
 
     func add(_ items: [ShelfItem]) {
+        let originals = items.compactMap(\.fileURL).filter { AppPaths.dropFolder(of: $0) == nil }
+        if Prefs.keepCopies, !originals.isEmpty {
+            addCopies(of: items)
+            return
+        }
         let added = shelf.add(items)
         guard !added.isEmpty else { return }
         changed()
+    }
+
+    /// Copy mode: copies the files into Hoverbox's own folder (instant on the same APFS
+    /// disk) and shelves the copies, so the originals are never moved or changed.
+    private func addCopies(of items: [ShelfItem]) {
+        let folder = AppPaths.newDropFolder()
+        if let free = AppPaths.freeSpace, free < 500_000_000 {
+            showStatus("Not enough free space to keep copies", isError: true)
+            return
+        }
+        showStatus("Copying…", sticky: true)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            var copies: [ShelfItem] = []
+            var failed = 0
+            for item in items {
+                guard let url = item.fileURL, AppPaths.dropFolder(of: url) == nil else {
+                    copies.append(item)
+                    continue
+                }
+                let target = OutputNaming.url(in: folder, for: url.lastPathComponent, fileExtension: url.pathExtension)
+                do {
+                    try FileManager.default.copyItem(at: url, to: target)
+                    copies.append(.file(target))
+                } catch {
+                    failed += 1
+                }
+            }
+            await MainActor.run {
+                guard let self else { return }
+                if !self.shelf.add(copies).isEmpty { self.changed() }
+                self.showStatus(failed == 0 ? (copies.count == 1 ? "Kept a copy" : "Kept \(copies.count) copies")
+                                       : "\(failed) couldn't be copied", isError: failed > 0)
+            }
+        }
     }
 
     func remove(_ ids: Set<UUID>) {
@@ -386,6 +426,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
             refreshFiles()
             return
         }
+        model?.rememberDraggedOut(shelf.items.filter { ids.contains($0.id) })
         remove(Set(ids))
         if shelf.isEmpty { close() }
     }

@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 @MainActor
 enum SettingsWindow {
     /// Every tab has this size, so the window stays still when you switch tabs.
-    static let size = CGSize(width: 520, height: 440)
+    static let size = CGSize(width: 580, height: 460)
 
     static func make() -> NSWindow {
         let tabs = NSTabViewController()
@@ -27,6 +27,7 @@ enum SettingsWindow {
         }
         add("General", "gearshape", GeneralSettings())
         add("Opening", "hand.draw", ShakeSettings())
+        add("Shortcuts", "keyboard", ShortcutSettings())
         add("Shelves", "square.stack", ShelvesSettings())
         add("Favourites", "star", FavouritesSettings())
         add("Automatic", "bolt.badge.clock", AutomaticSettings())
@@ -49,10 +50,6 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
-            Section("Keyboard shortcuts") {
-                KeyboardShortcuts.Recorder("New shelf at the pointer", name: .newShelf)
-            }
-
             Section("Startup") {
                 Toggle("Open Hoverbox at login", isOn: $launchAtLogin)
             }
@@ -182,6 +179,41 @@ private struct ShakeSettings: View {
     }
 }
 
+// MARK: - Shortcuts
+
+@MainActor
+private struct ShortcutSettings: View {
+    var body: some View {
+        Form {
+            Section {
+                KeyboardShortcuts.Recorder("New shelf", name: .newShelf)
+                KeyboardShortcuts.Recorder("Switch between shelves", name: .nextShelf)
+            } header: {
+                Text("Shelves")
+            } footer: {
+                Text("Press New shelf twice quickly to put the clipboard on the new shelf. Hold it down to bring back what you last dragged out. In Finder, ⇧⌘B adds the selected files (change it in System Settings › Keyboard › Keyboard Shortcuts › Services).")
+                    .settingsFootnote()
+            }
+
+            Section {
+                KeyboardShortcuts.Recorder("Compress to ZIP", name: .actionZip)
+                KeyboardShortcuts.Recorder("Extract text", name: .actionText)
+                KeyboardShortcuts.Recorder("Compress images", name: .actionCompress)
+                KeyboardShortcuts.Recorder("Resize images to 50%", name: .actionResize)
+                KeyboardShortcuts.Recorder("AirDrop", name: .actionAirDrop)
+                KeyboardShortcuts.Recorder("Share", name: .actionShare)
+            } header: {
+                Text("Actions")
+            } footer: {
+                Text("These work on the shelf you used last: its selected items, or everything on it. None are set until you choose keys.")
+                    .settingsFootnote()
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
+    }
+}
+
 // MARK: - Shelves
 
 @MainActor
@@ -189,6 +221,11 @@ private struct ShelvesSettings: View {
     @AppStorage(Prefs.backgroundOpacity) private var backgroundOpacity = Prefs.defaultBackgroundOpacity
     @AppStorage(Prefs.newShelfColorKey) private var newShelfColor = ""
     @AppStorage(Prefs.keepAfterDragOut) private var keepAfterDragOut = false
+    @AppStorage(Prefs.keepCopiesKey) private var keepCopies = false
+    @AppStorage(Prefs.placementKey) private var placement = ShelfPlacement.pointer.rawValue
+    @AppStorage(Prefs.appearanceKey) private var appearance = ShelfAppearance.system.rawValue
+    @AppStorage(Prefs.largeShelvesKey) private var largeShelves = false
+    @AppStorage(Prefs.openExpandedKey) private var openExpanded = false
 
     var body: some View {
         Form {
@@ -203,6 +240,15 @@ private struct ShelvesSettings: View {
                         Text("Solid").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                Picker("Appearance", selection: $appearance) {
+                    Text("Match the system").tag(ShelfAppearance.system.rawValue)
+                    Text("Light").tag(ShelfAppearance.light.rawValue)
+                    Text("Dark").tag(ShelfAppearance.dark.rawValue)
+                }
+                Picker("Size when showing all items", selection: $largeShelves) {
+                    Text("Regular").tag(false)
+                    Text("Large").tag(true)
+                }
                 Picker("Colour for new shelves", selection: $newShelfColor) {
                     Text("None").tag("")
                     ForEach(ShelfColor.allCases, id: \.rawValue) { option in
@@ -214,6 +260,24 @@ private struct ShelvesSettings: View {
                 Text("Look")
             } footer: {
                 Text("The background changes every open shelf as you drag; thumbnails and text always stay fully visible. A shelf's colour tints its grabber, selection and drop targets; change one shelf's colour from its chevron menu.")
+                    .settingsFootnote()
+            }
+
+            Section {
+                Picker("Shortcut and Finder shelves open", selection: $placement) {
+                    Text("At the pointer").tag(ShelfPlacement.pointer.rawValue)
+                    Text("In the top-right corner").tag(ShelfPlacement.topRight.rawValue)
+                    Text("In the middle of the screen").tag(ShelfPlacement.center.rawValue)
+                }
+                Toggle("Show all items when a shelf opens with files", isOn: $openExpanded)
+                Toggle(isOn: $keepCopies) {
+                    Text("Keep copies, not the original files")
+                    Text("Files you add are copied into Hoverbox, so the originals are never moved or changed. Copies are instant on the same disk; they are deleted once the shelf is closed and gone from Recently Closed.")
+                }
+            } header: {
+                Text("Adding files")
+            } footer: {
+                Text("Shelves opened by shaking or holding still always appear at the pointer, where your drag is.")
                     .settingsFootnote()
             }
 
