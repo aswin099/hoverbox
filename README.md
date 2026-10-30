@@ -4,6 +4,25 @@ A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the
 
 **Status: preview 0.4.0** (Phases 1 and 2 done). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
+<p align="center">
+  <img src="screenshots/shelf-compact.png" width="216" alt="A compact Hoverbox shelf: a pile of thumbnails with the name 4 Files">
+  &nbsp;
+  <img src="screenshots/shelf-grid.png" width="452" alt="The shelf expanded into a grid of four files with names and sizes">
+</p>
+
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="screenshots/shelf-instant-actions.png" width="216" alt="While dragging over a shelf, drop targets for AirDrop, Share, ZIP and Text"><br><sub><b>Instant Actions</b> appear while you drag over a shelf</sub></td>
+    <td align="center" width="33%"><img src="screenshots/shelf-light.png" width="216" alt="A light-mode shelf holding a file, a link and some text"><br><sub><b>Light or dark</b>, glass or solid, in your colour</sub></td>
+    <td align="center" width="33%"><img src="screenshots/shelf-list.png" width="300" alt="The expanded shelf as a list with file sizes"><br><sub><b>Grid or list</b>, with sizes and PDF page counts</sub></td>
+  </tr>
+</table>
+
+<p align="center">
+  <img src="screenshots/settings-opening.png" width="520" alt="Settings, Opening tab: open a shelf by shaking or by holding the pointer still">
+  <br><sub><b>Settings</b>: shake or hold still to open, sensitivity, and apps to leave alone</sub>
+</p>
+
 ## Install
 
 You need **macOS 14 Sonoma or later** (Apple silicon or Intel). There are two ways to install Hoverbox.
