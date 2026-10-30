@@ -1,0 +1,55 @@
+name: Bug report
+description: Something in Hoverbox doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. **Don't attach private files or share personal file paths here.** Use made-up examples instead.
+        For security problems, use the repository's **Security → Report a vulnerability** instead of an issue.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Hoverbox version
+      description: On macOS, Settings → About. On Windows, Settings → About.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system version
+      placeholder: "macOS 15.2, or Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Copy some text in TextEdit
+        2. Press ⇧⌘V
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots (with nothing private visible), or errors from `%LOCALAPPDATA%\Hoverbox\error.log` on Windows.

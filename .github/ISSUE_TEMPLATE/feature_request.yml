@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an idea or improvement for Hoverbox
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Hoverbox aims to stay small, keyboard-first and fully local (no network, no accounts). Ideas that fit that are most likely to be added.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you're trying to do and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Hoverbox to do?
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - macOS
+        - Windows
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Other apps, workarounds, or different ways Hoverbox could solve it.

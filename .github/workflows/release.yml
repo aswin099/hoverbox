@@ -1,0 +1,99 @@
+name: Release
+
+# Push a version tag (for example `git tag v0.4.0 && git push origin v0.4.0`) to build
+# Hoverbox for macOS and create a draft GitHub Release with the download. Review the draft
+# on GitHub, then click Publish. Tags with a suffix, such as v0.4.0-preview.1, become
+# pre-releases.
+#
+# Signing: with these repository secrets set, the app is signed with your Developer ID and
+# notarized by Apple, so it opens on any Mac without warnings:
+#   DEVELOPER_ID_P12           base64 of the "Developer ID Application" certificate (.p12)
+#   DEVELOPER_ID_P12_PASSWORD  the .p12 password
+#   APPLE_TEAM_ID              your 10-character team ID
+#   APPLE_ID                   the Apple ID email used for notarization
+#   APPLE_APP_PASSWORD         an app-specific password for that Apple ID
+# Without them the build is signed locally only (ad hoc), like Tuck's, and people have to
+# right-click > Open the first time.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS download
+    runs-on: macos-15
+    env:
+      SIGNED: ${{ secrets.DEVELOPER_ID_P12 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # KeyboardShortcuts 3.x needs Swift 6.2 (Xcode 26+); the runner's default Xcode can be older.
+      - name: Use the newest Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Test HoverboxCore
+        run: swift test --package-path Packages/HoverboxCore
+
+      - name: Import the Developer ID certificate
+        if: env.SIGNED == 'true'
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "" "$keychain"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$keychain"
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+
+      - name: Build Hoverbox.app
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          # macOS version numbers only allow digits and dots, so drop a "-preview" suffix here.
+          version="$(echo "${GITHUB_REF_NAME#v}" | cut -d- -f1)"
+          if [ "$SIGNED" = "true" ]; then
+            signing=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Developer ID Application" DEVELOPMENT_TEAM="$TEAM_ID" OTHER_CODE_SIGN_FLAGS=--timestamp)
+          else
+            signing=(CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=)
+          fi
+          set -o pipefail
+          xcodebuild -project Hoverbox.xcodeproj -scheme Hoverbox -configuration Release \
+            -derivedDataPath build "${signing[@]}" MARKETING_VERSION="$version" build 2>&1 | tee build.log || {
+            grep -E "error:" build.log | sort -u | head -25 | while IFS= read -r line; do echo "::error::$line"; done
+            exit 1
+          }
+
+      - name: Notarize and staple
+        if: env.SIGNED == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent build/Build/Products/Release/Hoverbox.app notarize.zip
+          xcrun notarytool submit notarize.zip --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple build/Build/Products/Release/Hoverbox.app
+
+      - name: Zip
+        run: ditto -c -k --keepParent build/Build/Products/Release/Hoverbox.app Hoverbox-macOS.zip
+
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft $prerelease \
+            --title "Hoverbox $GITHUB_REF_NAME" --generate-notes Hoverbox-macOS.zip

@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      # KeyboardShortcuts 3.x needs Swift 6.2 (Xcode 26+); the runner's default Xcode can be older.
+      - name: Use the newest Xcode
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Test HoverboxCore
+        run: swift test --package-path Packages/HoverboxCore
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build app
+        run: >
+          xcodebuild -project Hoverbox.xcodeproj -scheme Hoverbox
+          -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
