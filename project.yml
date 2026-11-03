@@ -23,6 +23,14 @@ targets:
       - package: HoverboxCore
       - package: KeyboardShortcuts
       - target: HoverboxShare
+      # The command-line tool, in SharedSupport/bin (Contents/MacOS would clash with
+      # "Hoverbox" on a case-insensitive disk).
+      - target: HoverboxCLI
+        embed: true
+        codeSign: true
+        copy:
+          destination: sharedSupport
+          subpath: bin
     info:
       path: App/Info.plist
       properties:
@@ -61,6 +69,22 @@ targets:
         CODE_SIGN_STYLE: Automatic
         # Not sandboxed yet: shelves hold references to files anywhere on disk.
         # The App Store build will need security-scoped bookmarks instead.
+  # `hoverbox`: control shelves from Terminal, scripts and coding agents.
+  HoverboxCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - CLI
+    dependencies:
+      - package: HoverboxCore
+    settings:
+      base:
+        PRODUCT_NAME: hoverbox
+        PRODUCT_BUNDLE_IDENTIFIER: com.arcova.hoverbox.cli
+        SWIFT_VERSION: "5.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
   # "Hoverbox" in every app's Share menu. A sandboxed extension (required for extensions)
   # that hands what was shared to the app through a hoverbox:// link.
   HoverboxShare:

@@ -76,9 +76,80 @@ final class AppModel: ObservableObject {
         // Appearance changes in Settings apply to open shelves straight away.
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.applyAppearanceIfChanged() }
+            MainActor.assumeIsolated {
+                self?.applyAppearanceIfChanged()
+                self?.writeStatusIfActionsChanged()
+            }
         }
         reloadFolderWatchers()
+        // Commands from the hoverbox command-line tool. Only local processes can post these.
+        commandObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name(AppCommand.notificationName), object: nil, queue: .main
+        ) { [weak self] note in
+            guard let text = note.object as? String, let command = AppCommand(encoded: text) else { return }
+            MainActor.assumeIsolated { self?.perform(command) }
+        }
+        writeStatus()
+    }
+
+    // MARK: Command-line tool
+
+    private var commandObserver: NSObjectProtocol?
+
+    /// The shelf a command means: its number from `hoverbox list`, else the newest.
+    private func shelf(number: Int?) -> ShelfController? {
+        guard let number else { return shelves.last }
+        return shelves.indices.contains(number - 1) ? shelves[number - 1] : nil
+    }
+
+    func perform(_ command: AppCommand) {
+        func files(_ paths: [String]) -> [ShelfItem] {
+            paths.filter { FileManager.default.fileExists(atPath: $0) }.map { .file(URL(fileURLWithPath: $0)) }
+        }
+        switch command {
+        case .newShelf(let paths):
+            newShelf(at: placementPoint(near: NSEvent.mouseLocation), items: files(paths))
+        case .add(let paths, let number):
+            if let target = shelf(number: number) {
+                target.add(files(paths))
+                target.undockIfNeeded()
+                target.panel.orderFrontRegardless()
+            } else if number == nil {
+                newShelf(at: placementPoint(near: NSEvent.mouseLocation), items: files(paths))
+            }
+        case .runAction(let name, let number):
+            guard let target = shelf(number: number) else { return }
+            if !target.performAction(named: name, onWholeShelf: true) {
+                target.showStatus("No action called \(name)", isError: true)
+            }
+        case .close(let number):
+            if let target = shelf(number: number) { close(target) }
+        }
+    }
+
+    private var publishedActionNames: [String] = []
+
+    private func writeStatusIfActionsChanged() {
+        if Prefs.customActions.map(\.name) != publishedActionNames { writeStatus() }
+    }
+
+    /// Files from the Shortcuts app: a new shelf, or the newest one.
+    func addFromShortcut(_ items: [ShelfItem], newShelf makeNew: Bool) {
+        if !makeNew, let target = shelves.last {
+            target.add(items)
+            target.undockIfNeeded()
+            target.panel.orderFrontRegardless()
+        } else {
+            newShelf(at: placementPoint(near: NSEvent.mouseLocation), items: items)
+        }
+    }
+
+    /// What `hoverbox list`, `paths` and `actions` read.
+    func writeStatus() {
+        let infos = shelves.enumerated().map { AppStatus.ShelfInfo(number: $0.offset + 1, shelf: $0.element.shelf) }
+        publishedActionNames = Prefs.customActions.map(\.name)
+        let actions = publishedActionNames + ShelfController.builtInActionNames
+        try? AppStatus(shelves: infos, actions: actions).save()
     }
 
     // MARK: Shortcuts
@@ -158,6 +229,7 @@ final class AppModel: ObservableObject {
         Announcer.say(items.isEmpty ? "Shelf opened. Drop files on it, or press Command V to paste."
                                     : "Shelf opened with \(Shelf.summary(of: items))")
         if Prefs.openExpanded, !items.isEmpty { controller.setExpanded(true) }
+        writeStatus()
         return controller
     }
 
@@ -183,6 +255,7 @@ final class AppModel: ObservableObject {
         saveRecent()
         removeUnusedDrops()
         save()
+        writeStatus()
     }
 
     // MARK: Recently closed
@@ -264,6 +337,7 @@ final class AppModel: ObservableObject {
 
     func shelfChanged(_ controller: ShelfController) {
         objectWillChange.send()
+        writeStatus()
         save()
     }
 

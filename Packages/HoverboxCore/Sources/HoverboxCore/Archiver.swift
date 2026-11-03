@@ -13,15 +13,16 @@ public enum ArchiverError: LocalizedError, Equatable {
 /// Makes and opens ZIP archives with macOS's own `ditto`, the tool Finder's
 /// Compress command uses, so archives behave exactly like Finder's.
 public enum Archiver {
-    /// Zips `items` into `output`. One item keeps its own folder at the top; several
-    /// items sit side by side at the top level, as with Finder's "Archive.zip".
+    /// Zips `items` into `output`. A single folder keeps its own name at the top; files
+    /// sit at the top level, as with Finder's Compress. (`--keepParent` is only for folders:
+    /// on a file it would wrap it in the name of the folder it came from.)
     public static func zip(_ items: [URL], to output: URL) throws {
         guard !items.isEmpty else { return }
-        if items.count == 1 {
+        if items.count == 1, (try? items[0].resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
             try ditto(["-c", "-k", "--sequesterRsrc", "--keepParent", items[0].path, output.path])
             return
         }
-        // Several items: clone them into one staging folder (instant and space-free on APFS), then zip its contents.
+        // Clone them into one staging folder (instant and space-free on APFS), then zip its contents.
         let staging = FileManager.default.temporaryDirectory.appendingPathComponent("Hoverbox-zip-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: staging) }

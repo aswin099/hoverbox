@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 
 /// Image formats Hoverbox can write. Which ones work depends on the OS's ImageIO
 /// encoders, so menus should offer `ImageFormat.writable`.
-public enum ImageFormat: String, CaseIterable, Sendable {
+public enum ImageFormat: String, CaseIterable, Codable, Sendable {
     case png, jpeg, heic, webp, tiff
 
     public var type: UTType {

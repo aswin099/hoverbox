@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 @MainActor
 enum SettingsWindow {
     /// Every tab has this size, so the window stays still when you switch tabs.
-    static let size = CGSize(width: 580, height: 460)
+    static let size = CGSize(width: 640, height: 480)
 
     static func make() -> NSWindow {
         let tabs = NSTabViewController()
@@ -29,6 +29,7 @@ enum SettingsWindow {
         add("Opening", "hand.draw", ShakeSettings())
         add("Shortcuts", "keyboard", ShortcutSettings())
         add("Shelves", "square.stack", ShelvesSettings())
+        add("Actions", "wand.and.stars", ActionsSettings())
         add("Favourites", "star", FavouritesSettings())
         add("Automatic", "bolt.badge.clock", AutomaticSettings())
         add("About", "info.circle", AboutSettings())
@@ -47,9 +48,57 @@ enum SettingsWindow {
 @MainActor
 private struct GeneralSettings: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var installMessage: String?
+
+    private static let candidates = ["/opt/homebrew/bin", "/usr/local/bin", NSHomeDirectory() + "/.local/bin"]
+
+    private var installedAt: String? {
+        Self.candidates.map { $0 + "/hoverbox" }.first { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    /// Links `hoverbox` into the first folder on the usual PATH that can be written without an
+    /// administrator password, pointing at the tool inside this copy of the app.
+    private func installCommand() {
+        let tool = Bundle.main.bundleURL.appendingPathComponent("Contents/SharedSupport/bin/hoverbox")
+        let fileManager = FileManager.default
+        guard fileManager.isExecutableFile(atPath: tool.path) else {
+            installMessage = "The tool is missing from this copy of Hoverbox."
+            return
+        }
+        for folder in Self.candidates {
+            if folder.hasSuffix(".local/bin") { try? fileManager.createDirectory(atPath: folder, withIntermediateDirectories: true) }
+            guard fileManager.isWritableFile(atPath: folder) else { continue }
+            let link = folder + "/hoverbox"
+            try? fileManager.removeItem(atPath: link)
+            do {
+                try fileManager.createSymbolicLink(atPath: link, withDestinationPath: tool.path)
+                installMessage = folder.hasSuffix(".local/bin")
+                    ? "Installed at \(link). If Terminal can't find it, add ~/.local/bin to your PATH."
+                    : "Installed at \(link). Open a new Terminal window and try hoverbox help."
+                return
+            } catch {
+                continue
+            }
+        }
+        installMessage = "Couldn't install. In Terminal, run: sudo ln -s \"\(tool.path)\" /usr/local/bin/hoverbox"
+    }
 
     var body: some View {
         Form {
+            Section {
+                LabeledContent("hoverbox command") {
+                    Button(installedAt == nil ? "Install…" : "Reinstall") { installCommand() }
+                }
+                if let message = installMessage {
+                    Text(message).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
+                }
+            } header: {
+                Text("Command-line tool")
+            } footer: {
+                Text("Lets Terminal, scripts and coding agents open shelves, add files, list them and run actions. Try hoverbox help.")
+                    .settingsFootnote()
+            }
+
             Section("Startup") {
                 Toggle("Open Hoverbox at login", isOn: $launchAtLogin)
             }
@@ -295,6 +344,164 @@ private struct ShelvesSettings: View {
         }
         .formStyle(.grouped)
         .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
+    }
+}
+
+// MARK: - Actions
+
+@MainActor
+private struct ActionsSettings: View {
+    @State private var actions = Prefs.customActions
+    @State private var selection: UUID?
+
+    private static let examples: [CustomAction] = [
+        CustomAction(name: "Web Images", steps: [.resizeLongestSide(1600), .convert(.jpeg), .compress]),
+        CustomAction(name: "Email Bundle", steps: [.compress, .zip]),
+        CustomAction(name: "Count Words", steps: [.script(#"cat "$@" | wc -w | tr -d ' '"#)]),
+    ]
+
+    private var selectedIndex: Int? { actions.firstIndex { $0.id == selection } }
+
+    var body: some View {
+        Form {
+            Section {
+                if actions.isEmpty {
+                    Text("No actions yet. Add one, or start from an example.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                } else {
+                    List(actions, selection: $selection) { action in
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(action.name)
+                            Text(action.steps.map(\.summary).joined(separator: " → "))
+                                .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(height: 110)
+                }
+                ListButtons(canRemove: selection != nil, remove: removeSelected) {
+                    Button("New Action") { add(CustomAction(name: "New Action", steps: [])) }
+                    Divider()
+                    ForEach(Self.examples) { example in
+                        Button("Example: \(example.name)") { add(CustomAction(name: example.name, steps: example.steps)) }
+                    }
+                }
+            } header: {
+                Text("Your actions")
+            } footer: {
+                Text("Run them from a shelf's chevron menu, from Terminal with hoverbox run NAME, or from the Shortcuts app. They make new files; originals are never changed.")
+                    .settingsFootnote()
+            }
+
+            if let index = selectedIndex {
+                Section {
+                    TextField("Name", text: $actions[index].name)
+                    ForEach(actions[index].steps.indices, id: \.self) { step in
+                        StepRow(step: $actions[index].steps[step],
+                                moveUp: step > 0 ? { actions[index].steps.swapAt(step, step - 1) } : nil,
+                                remove: { actions[index].steps.remove(at: step) })
+                    }
+                    Menu("Add Step") {
+                        Button("Resize images to a longest side") { actions[index].steps.append(.resizeLongestSide(1600)) }
+                        Button("Resize images by percent") { actions[index].steps.append(.resizePercent(50)) }
+                        Button("Convert images") { actions[index].steps.append(.convert(.jpeg)) }
+                        Button("Compress images") { actions[index].steps.append(.compress) }
+                        Button("Compress to ZIP") { actions[index].steps.append(.zip) }
+                        Divider()
+                        Button("Run a shell script") { actions[index].steps.append(.script(#"for file in "$@"; do echo "$file"; done"#)) }
+                    }
+                    .fixedSize()
+                } header: {
+                    Text("Steps")
+                } footer: {
+                    Text("Each step works on what the step before it made. Scripts run in zsh with the files as $@; write new files into $HOVERBOX_OUTPUT, and anything printed is added to the shelf as text. Scripts stop after 2 minutes.")
+                        .settingsFootnote()
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
+        .onChange(of: actions) { _, list in Prefs.customActions = list }
+    }
+
+    private func add(_ action: CustomAction) {
+        var action = action
+        var name = action.name, number = 2
+        while actions.contains(where: { $0.name == name }) {
+            name = "\(action.name) \(number)"
+            number += 1
+        }
+        action.name = name
+        actions.append(action)
+        selection = action.id
+    }
+
+    private func removeSelected() {
+        actions.removeAll { $0.id == selection }
+        selection = nil
+    }
+}
+
+/// One step of an action, with its own controls.
+private struct StepRow: View {
+    @Binding var step: CustomAction.Step
+    let moveUp: (() -> Void)?
+    let remove: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top) {
+            content
+            Spacer(minLength: 8)
+            if let moveUp {
+                Button(action: moveUp) { Image(systemName: "arrow.up") }
+                    .buttonStyle(.borderless).help("Move up").accessibilityLabel("Move step up")
+            }
+            Button(action: remove) { Image(systemName: "trash") }
+                .buttonStyle(.borderless).help("Remove step").accessibilityLabel("Remove step")
+        }
+    }
+
+    @ViewBuilder private var content: some View {
+        switch step {
+        case .resizeLongestSide(let side):
+            Stepper(value: Binding(get: { side }, set: { step = .resizeLongestSide(max(16, $0)) }), in: 16...10000, step: 100) {
+                Text("Resize images: longest side \(side) px")
+            }
+        case .resizePercent(let percent):
+            Picker("Resize images by", selection: Binding(get: { percent }, set: { step = .resizePercent($0) })) {
+                ForEach([25, 50, 75], id: \.self) { Text("\($0)%").tag($0) }
+            }
+        case .convert(let format):
+            Picker("Convert images to", selection: Binding(get: { format }, set: { step = .convert($0) })) {
+                ForEach(ImageFormat.writable, id: \.self) { Text($0.displayName).tag($0) }
+            }
+        case .compress:
+            Text("Compress images (keeps only smaller files)")
+        case .zip:
+            Text("Compress everything to one ZIP")
+        case .script(let script):
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Run shell script")
+                TextEditor(text: Binding(get: { script }, set: { step = .script($0) }))
+                    .font(.system(size: 12, design: .monospaced))
+                    .frame(height: 70)
+                    .accessibilityLabel("Script")
+            }
+        }
+    }
+}
+
+private extension CustomAction.Step {
+    var summary: String {
+        switch self {
+        case .resizeLongestSide(let side): return "Resize \(side) px"
+        case .resizePercent(let percent): return "Resize \(percent)%"
+        case .convert(let format): return format.displayName
+        case .compress: return "Compress"
+        case .zip: return "ZIP"
+        case .script: return "Script"
+        }
     }
 }
 

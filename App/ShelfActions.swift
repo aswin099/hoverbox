@@ -163,6 +163,14 @@ extension ShelfController {
         menu.addItem(item("Compress Images (Smaller Files)", enabled: !images.isEmpty) { [weak self] in self?.compress(images) })
         menu.addItem(.separator())
         menu.addItem(item("Extract Text", enabled: !readable.isEmpty) { [weak self] in self?.extractText(readable) })
+        let custom = Prefs.customActions
+        if !custom.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(NSMenuItem.sectionHeader(title: "Your Actions"))
+            for action in custom {
+                menu.addItem(item(action.name, enabled: !files.isEmpty) { [weak self] in self?.runCustom(action, on: files) })
+            }
+        }
         return menu
     }
 
@@ -332,6 +340,49 @@ extension ShelfController {
             return ([.text(text)], "Text copied and added to the shelf")
         } after: { items in
             if let text = items.first { self.copyToPasteboard([text]) }
+        }
+    }
+
+    // MARK: Your actions
+
+    /// Built-in actions the command-line tool and Shortcuts can run by name.
+    static let builtInActionNames = ["ZIP", "Extract Text", "Compress Images", "Resize Images 50%", "AirDrop", "Share"]
+
+    /// Runs an action by name: one of the user's own actions, or a built-in one. On the selection
+    /// (or everything) from the shelf itself; on everything from Terminal or Shortcuts, which
+    /// can't see what's selected. Returns false when there's no action with that name.
+    @discardableResult
+    func performAction(named name: String, onWholeShelf: Bool = false) -> Bool {
+        let targets = onWholeShelf ? shelf.items.filter { !missing.contains($0.id) } : actionTargets
+        let files = targets.compactMap(\.fileURL)
+        if let action = Prefs.customActions.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
+            runCustom(action, on: files)
+            return true
+        }
+        switch name.lowercased() {
+        case "zip": zip(files)
+        case "extract text", "text": extractText(files.filter(TextRecognizer.canRead))
+        case "compress images", "compress": compress(files.filter(ImageTool.isImage))
+        case "resize images 50%", "resize": resize(files.filter(ImageTool.isImage), to: .percent(50))
+        case "airdrop": airDrop(targets)
+        case "share": share(targets)
+        default: return false
+        }
+        return true
+    }
+
+    /// Runs one of the user's own actions; its results join the shelf, selected.
+    func runCustom(_ action: CustomAction, on files: [URL]) {
+        guard !files.isEmpty else {
+            showStatus("\(action.name) needs files", isError: true)
+            return
+        }
+        let folder = AppPaths.newDropFolder()
+        run("\(action.name)…") {
+            let result = try ActionRunner.run(action, on: files, in: folder)
+            var items = result.files.filter { !files.contains($0) }.map(ShelfItem.file)
+            if let text = result.text { items.append(.text(text)) }
+            return (items, items.isEmpty ? "\(action.name): done" : "\(action.name): \(Shelf.summary(of: items))")
         }
     }
 

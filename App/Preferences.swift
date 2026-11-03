@@ -123,6 +123,17 @@ enum Prefs {
     }
 
     static var shouldKeepAfterDragOut: Bool { UserDefaults.standard.bool(forKey: keepAfterDragOut) }
+
+    static let customActionsKey = "customActions"
+
+    /// The user's own multi-step actions (Settings › Actions), stored as JSON.
+    static var customActions: [CustomAction] {
+        get {
+            UserDefaults.standard.data(forKey: customActionsKey)
+                .flatMap { try? JSONDecoder().decode([CustomAction].self, from: $0) } ?? []
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: customActionsKey) }
+    }
     /// Copy mode: files dropped on a shelf are copied, so originals are never touched.
     static var keepCopies: Bool { UserDefaults.standard.bool(forKey: keepCopiesKey) }
     static var placement: ShelfPlacement {

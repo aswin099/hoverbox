@@ -129,6 +129,16 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: extracted[1].appendingPathComponent("b.txt"), encoding: .utf8), "inside")
     }
 
+    func testZipSingleFileSitsAtTheTop() throws {
+        let folder = tempDir.appendingPathComponent("Private Folder Name")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let file = folder.appendingPathComponent("report.txt")
+        try Data("x".utf8).write(to: file)
+        let archive = tempDir.appendingPathComponent("report.zip")
+        try Archiver.zip([file], to: archive)
+        XCTAssertEqual(try Archiver.unzip(archive, into: tempDir.appendingPathComponent("out")).map(\.lastPathComponent), ["report.txt"])
+    }
+
     func testZipSingleFolderKeepsItsName() throws {
         let folder = tempDir.appendingPathComponent("Photos")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

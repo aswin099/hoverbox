@@ -2,7 +2,7 @@
 
 A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
 
-**Status: preview 0.4.1** (Phases 1 and 2 done). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
+**Status: preview 0.4.1**, with Phase 3 automation in progress on `main`. See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 <p align="center">
   <img src="screenshots/shelf-compact.png" width="216" alt="A compact Hoverbox shelf: a pile of thumbnails with the name 4 Files">
@@ -118,6 +118,13 @@ Quit Hoverbox from its menu bar icon, replace **Hoverbox.app** in Applications w
 - **Menu bar:** new shelf, open shelves, close unpinned shelves, pause shake, Settings.
 - **Settings:** shelf background from glass to solid (live), shake on/off and sensitivity, hotkey, keep after drag-out, apps where shaking is ignored, launch at login.
 - **Links:** `open "hoverbox://new"` opens a shelf; `open "hoverbox://add?path=/path/to/file"` adds files to the newest shelf.
+
+## Automation
+
+- **Your own actions** (Settings › Actions): chain steps such as *resize to 1600 px → convert to JPEG → compress*, or *compress → ZIP*, or run a shell script. Run them from a shelf's chevron menu. Scripts run in zsh with the files as `$@`; they write new files into `$HOVERBOX_OUTPUT`, and anything they print lands on the shelf as text. Originals are never changed.
+- **`hoverbox` command** (Settings › General › Install): `hoverbox new FILE…`, `add FILE… [--shelf N]`, `list [--json]`, `paths`, `actions`, `run ACTION [--shelf N]`, `close N`. It starts Hoverbox if needed. Handy for scripts and coding agents.
+- **Shortcuts app:** *Add to Hoverbox*, *Get Hoverbox Files* and *Run Hoverbox Action*.
+- Commands reach the app over a local channel only, never through `hoverbox://` links, so a web page can't run your scripts.
 
 ## How shake works without permissions
 - macOS needs the Accessibility permission only for watching *keys*, not the mouse. Hoverbox watches for a left mouse-down in any app, then checks the pointer 60 times a second only while the button is held, so it does nothing while idle.
