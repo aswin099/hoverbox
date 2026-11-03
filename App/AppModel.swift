@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     private var watchedShelves: [String: ShelfController] = [:]
     private var started = false
     private var gestures = HotkeyGestures()
+    /// The shelf used last: updated when one gains focus or the switcher lands on it.
+    /// Tracked here because a window's key status lags just after it changes.
+    private weak var focusedShelf: ShelfController?
     /// What was last dragged out of a shelf, for the long-press gesture to bring back.
     private var lastDraggedOut: [ShelfItem] = []
     private var defaultsObserver: NSObjectProtocol?
@@ -102,9 +105,13 @@ final class AppModel: ObservableObject {
         if !items.isEmpty { lastDraggedOut = items }
     }
 
-    /// The shelf the action shortcuts work on: the one you're using, else the newest.
+    /// The shelf the action shortcuts work on: the one used last, else the newest.
     var activeShelf: ShelfController? {
-        shelves.first { $0.panel.isKeyWindow } ?? shelves.last
+        shelves.first { $0 === focusedShelf } ?? shelves.last
+    }
+
+    func shelfGainedFocus(_ controller: ShelfController) {
+        focusedShelf = controller
     }
 
     /// Cycles through open shelves, bringing each forward (and out of its dock).
@@ -113,8 +120,9 @@ final class AppModel: ObservableObject {
             NSSound.beep()
             return
         }
-        let current = shelves.firstIndex { $0.panel.isKeyWindow }
+        let current = shelves.firstIndex { $0 === focusedShelf }
         let next = shelves[current.map { ($0 + 1) % shelves.count } ?? 0]
+        focusedShelf = next
         next.undockIfNeeded()
         next.bringToFront()
         Announcer.say("Shelf: \(next.shelf.title)")
@@ -173,7 +181,7 @@ final class AppModel: ObservableObject {
         Announcer.say(controller.shelf.isEmpty ? "Shelf closed" : "Shelf closed. Reopen it from Recently Closed in the menu bar.")
         recent.remember(controller.shelf)
         saveRecent()
-        AppPaths.removeUnusedDrops(keeping: shelves.map(\.shelf) + recent.shelves)
+        removeUnusedDrops()
         save()
     }
 
@@ -193,7 +201,12 @@ final class AppModel: ObservableObject {
     func clearRecent() {
         recent.clear()
         saveRecent()
-        AppPaths.removeUnusedDrops(keeping: shelves.map(\.shelf))
+        removeUnusedDrops()
+    }
+
+    /// Keeps files that open shelves, Recently Closed or the long-press gesture still need.
+    private func removeUnusedDrops() {
+        AppPaths.removeUnusedDrops(keeping: shelves.map(\.shelf) + recent.shelves + [Shelf(items: lastDraggedOut)])
     }
 
     private func saveRecent() {
@@ -328,7 +341,47 @@ final class AppModel: ObservableObject {
             }
             return
         }
+        // Test the shortcut gestures through the real handler, without pressing keys.
+        if let paste = query["testPaste"] {
+            let pasteboard = NSPasteboard(name: NSPasteboard.Name("hoverbox-debug"))
+            pasteboard.clearContents()
+            pasteboard.setString(paste, forType: .string)
+            ShelfController.pasteboard = pasteboard
+        }
+        if let path = query["remember"] { rememberDraggedOut([.file(URL(fileURLWithPath: path))]) }
+        if let gesture = query["gesture"] {
+            let now = ProcessInfo.processInfo.systemUptime
+            func press(at time: TimeInterval, holding: TimeInterval = 0.08) {
+                gestures.keyDown(at: time)
+                handle(gestures.keyUp(at: time + holding))
+            }
+            switch gesture {
+            case "short": press(at: now)
+            case "double":
+                press(at: now)
+                press(at: now + 0.25)
+            case "long": press(at: now, holding: 0.7)
+            default: break
+            }
+        }
+        // Several ⌥⇧Tab presses in a row, logged as "pressed -> focused shelf (key shelf)". Run from
+        // one command because each hoverbox:// link activates the app and moves key status itself.
+        if let log = query["nextLog"], let count = Int(query["next"] ?? "") {
+            for press in 0..<count {
+                DispatchQueue.main.asyncAfter(deadline: .now() + Double(press) * 0.5 + 0.5) { [self] in
+                    focusNextShelf()
+                    let focused = shelves.firstIndex { $0 === focusedShelf } ?? -1
+                    let key = shelves.firstIndex { $0.panel.isKeyWindow } ?? -1
+                    let line = "press \(press + 1) -> \(focused + 1) (key \(key + 1))\n"
+                    let old = (try? String(contentsOfFile: log, encoding: .utf8)) ?? ""
+                    try? (old + line).write(toFile: log, atomically: true, encoding: .utf8)
+                }
+            }
+        }
         guard let shelf = shelves.last else { return }
+        let files = (components.queryItems ?? []).filter { $0.name == "path" }.compactMap { $0.value.map { URL(fileURLWithPath: $0) } }
+        if let folder = query["favDrop"] { shelf.drop(files.map(ShelfItem.file), on: Favourite(url: URL(fileURLWithPath: folder))) }
+        if let folder = query["favMove"] { shelf.copy(files, into: URL(fileURLWithPath: folder), move: true) }
         if let expand = query["expand"] { shelf.setExpanded(expand == "1") }
         if let layout = query["layout"].flatMap(ShelfLayout.init(rawValue:)) { shelf.setLayout(layout) }
         if let target = query["target"] { shelf.isDropTargeted = target == "1" }
@@ -350,7 +403,7 @@ final class AppModel: ObservableObject {
                 let url = URL(fileURLWithPath: folder).appendingPathComponent(name + ".png")
                 try? rep.representation(using: .png, properties: [:])?.write(to: url)
                 let first = controller.shelf.items.first?.fileURL?.path ?? "-"
-                let state = "title=\(controller.shelf.title) items=\(controller.shelf.items.count) first=\(first) status=\(controller.status?.text ?? "-") expanded=\(controller.isExpanded) "
+                let state = "title=\(controller.shelf.title) items=\(controller.shelf.items.count) first=\(first) key=\(controller.panel.isKeyWindow) focused=\(controller === self.focusedShelf) status=\(controller.status?.text ?? "-") expanded=\(controller.isExpanded) "
                     + "docked=\(String(describing: controller.dockedEdge)) window=\(Int(controller.panel.frame.width))x\(Int(controller.panel.frame.height)) "
                     + "x=\(Int(controller.panel.frame.minX)) shelves=\(shelves.count) recent=\(self.recent.shelves.count)\n"
                 try? state.write(to: url.deletingPathExtension().appendingPathExtension("txt"), atomically: true, encoding: .utf8)

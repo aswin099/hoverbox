@@ -72,6 +72,8 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
 
         NotificationCenter.default.addObserver(self, selector: #selector(panelMoved),
                                                name: NSWindow.didMoveNotification, object: panel)
+        NotificationCenter.default.addObserver(self, selector: #selector(panelGainedFocus),
+                                               name: NSWindow.didBecomeKeyNotification, object: panel)
     }
 
     // MARK: Showing
@@ -97,6 +99,10 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     func bringToFront() {
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    @objc private func panelGainedFocus() {
+        model?.shelfGainedFocus(self)
     }
 
     @objc private func panelMoved() {
@@ -398,11 +404,14 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
         if !urls.isEmpty { NSWorkspace.shared.activateFileViewerSelecting(urls) }
     }
 
+    /// Where paste reads from. Only the debug test commands change this.
+    static var pasteboard = NSPasteboard.general
+
     /// Adds whatever is on the clipboard: files copied in Finder, images, links or text.
     /// With ⌘C in Finder this puts files on a shelf without dragging at all.
     func paste() {
         let before = shelf.items.count
-        let read = DropReader.read(NSPasteboard.general) { [weak self] items in
+        let read = DropReader.read(Self.pasteboard) { [weak self] items in
             guard let self else { return }
             add(items)
             let added = shelf.items.count - before
