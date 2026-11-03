@@ -2,7 +2,7 @@
 
 A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
 
-**Status: preview 0.4.1**, with Phase 3 automation in progress on `main`. See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
+**Status: preview 0.5.0** (Phases 1 and 2 done, Phase 3 automation added). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
 <p align="center">
   <img src="screenshots/shelf-compact.png" width="216" alt="A compact Hoverbox shelf: a pile of thumbnails with the name 4 Files">
