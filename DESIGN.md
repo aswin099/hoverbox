@@ -62,7 +62,7 @@ Do:
 - Keep originals untouched: actions make new files
 
 Don't:
-- Ask for permissions (Accessibility, Input Monitoring, Screen Recording) or reach the network
+- Ask for permissions (Accessibility, Input Monitoring, Screen Recording), or go online except to upload to storage the user set up
 - Steal focus from the app the user is dragging from
 - Copy another app's screens, icons or wording
 - Use the brand colours for body text, or the coral accent for anything but the icon dot

@@ -76,6 +76,33 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
             menu.addItem(closeAll)
         }
 
+        if !model.uploads.isEmpty {
+            let parent = NSMenuItem(title: "Recent Uploads", action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .short
+            for record in model.uploads {
+                let expired = record.expiresAt.map { $0 < Date() } ?? false
+                let entry = NSMenuItem(title: "\(record.fileName)  ·  \(formatter.localizedString(for: record.uploadedAt, relativeTo: Date()))\(expired ? " (link expired)" : "")",
+                                       action: nil, keyEquivalent: "")
+                let actions = NSMenu()
+                actions.addItem(ActionMenuItem("Copy Link") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(record.link.absoluteString, forType: .string)
+                })
+                actions.addItem(ActionMenuItem("Open Link") { NSWorkspace.shared.open(record.link) })
+                actions.addItem(.separator())
+                actions.addItem(ActionMenuItem("Delete From Server") { [weak self] in self?.model.deleteUpload(record) })
+                entry.submenu = actions
+                submenu.addItem(entry)
+            }
+            submenu.addItem(.separator())
+            submenu.addItem(ActionMenuItem("Clear Upload History") { [weak self] in self?.model.forgetUploads() })
+            parent.submenu = submenu
+            menu.addItem(.separator())
+            menu.addItem(parent)
+        }
+
         if !model.recent.shelves.isEmpty {
             let recent = NSMenuItem(title: "Recently Closed", action: nil, keyEquivalent: "")
             let submenu = NSMenu()

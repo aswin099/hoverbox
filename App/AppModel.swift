@@ -12,6 +12,8 @@ final class AppModel: ObservableObject {
     @Published var isShakePaused = false
 
     @Published private(set) var recent = RecentShelves()
+    /// Uploads, newest first, for the menu bar (last 30).
+    @Published private(set) var uploads: [UploadRecord] = []
 
     private let watcher = DragWatcher()
     private let archive = ShelfArchive(fileURL: AppPaths.archive)
@@ -36,6 +38,8 @@ final class AppModel: ObservableObject {
 
         let saved = archive.load()
         recent = RecentShelves(shelves: recentArchive.load())
+        uploads = (try? Data(contentsOf: AppPaths.uploadHistory))
+            .flatMap { try? JSONDecoder().decode([UploadRecord].self, from: $0) } ?? []
         AppPaths.removeUnusedDrops(keeping: saved + recent.shelves)
         for (index, shelf) in saved.enumerated() {
             let controller = ShelfController(shelf: shelf, model: self)
@@ -258,6 +262,51 @@ final class AppModel: ObservableObject {
         writeStatus()
     }
 
+    // MARK: Uploads
+
+    func rememberUploads(_ records: [UploadRecord]) {
+        uploads = Array((records.reversed() + uploads).prefix(30))
+        saveUploads()
+    }
+
+    func forgetUploads() {
+        uploads = []
+        saveUploads()
+    }
+
+    /// Deletes an uploaded file from the server, then from the history.
+    func deleteUpload(_ record: UploadRecord) {
+        guard let destination = Prefs.uploadDestinations.first(where: { $0.id == record.destinationID }) else {
+            uploads.removeAll { $0.id == record.id }
+            saveUploads()
+            return
+        }
+        Task.detached {
+            let result = Result { try Uploader.delete(record, from: destination) }
+            await MainActor.run {
+                switch result {
+                case .success:
+                    self.uploads.removeAll { $0.id == record.id }
+                    self.saveUploads()
+                    Announcer.say("Deleted \(record.fileName) from \(destination.name)")
+                case .failure(let error):
+                    let alert = NSAlert(error: error)
+                    alert.messageText = "Couldn't delete \(record.fileName)"
+                    alert.informativeText = error.localizedDescription
+                    NSApp.activate(ignoringOtherApps: true)
+                    alert.runModal()
+                }
+            }
+        }
+    }
+
+    private func saveUploads() {
+        guard let data = try? JSONEncoder().encode(uploads) else { return }
+        try? FileManager.default.createDirectory(at: AppPaths.support, withIntermediateDirectories: true)
+        try? data.write(to: AppPaths.uploadHistory, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: AppPaths.uploadHistory.path)
+    }
+
     // MARK: Recently closed
 
     /// Opens a recently closed shelf again, below the menu bar icon or at `point`.
@@ -450,6 +499,41 @@ final class AppModel: ObservableObject {
                     let old = (try? String(contentsOfFile: log, encoding: .utf8)) ?? ""
                     try? (old + line).write(toFile: log, atomically: true, encoding: .utf8)
                 }
+            }
+        }
+        // Temporary upload destinations for testing against a local server.
+        if let kind = query["testDest"], let endpoint = query["endpoint"] {
+            let destination = kind == "webdav"
+                ? UploadDestination(name: "Test WebDAV", kind: .webDAV(WebDAVSettings(folderURL: endpoint, username: "tester")))
+                : UploadDestination(name: "Test S3", kind: .s3(S3Settings(endpoint: endpoint, region: "us-east-1", bucket: "testbucket",
+                                                                           accessKeyID: "TESTKEY", prefix: "hb")),
+                                    linkLifetime: 3600)
+            Prefs.uploadDestinations = Prefs.uploadDestinations.filter { !$0.name.hasPrefix("Test ") } + [destination]
+            UploadSecrets.setSecret(kind == "webdav" ? "test-password" : "test/secret+key", for: destination.id)
+            UserDefaults.standard.set(destination.id.uuidString, forKey: Prefs.defaultDestinationKey)
+        }
+        if query["clearTestDests"] == "1" {
+            Prefs.uploadDestinations.filter { $0.name.hasPrefix("Test ") }.forEach { UploadSecrets.setSecret("", for: $0.id) }
+            Prefs.uploadDestinations = Prefs.uploadDestinations.filter { !$0.name.hasPrefix("Test ") }
+            UserDefaults.standard.removeObject(forKey: Prefs.defaultDestinationKey)
+            uploads.removeAll()
+            saveUploads()
+        }
+        if let log = query["testConnection"], let destination = Prefs.defaultDestination {
+            Task.detached {
+                let result = Result { try Uploader.test(destination) }
+                let text: String
+                switch result {
+                case .success: text = "ok"
+                case .failure(let error): text = "failed: \(error.localizedDescription)"
+                }
+                try? text.write(toFile: log, atomically: true, encoding: .utf8)
+            }
+        }
+        if let log = query["deleteLastUpload"], let record = uploads.first {
+            deleteUpload(record)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [self] in
+                try? "remaining=\(uploads.count)".write(toFile: log, atomically: true, encoding: .utf8)
             }
         }
         guard let shelf = shelves.last else { return }

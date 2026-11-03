@@ -1,6 +1,6 @@
 # Hoverbox
 
-A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, no internet. MIT licensed, by Arcova.
+A free, open-source drag-and-drop shelf for macOS (Windows to follow). Shake the pointer while dragging and a shelf appears. Drop things on it, go wherever you need, then drag them back out. No permissions, no account, and it only goes online when you upload, to storage you choose. MIT licensed, by Arcova.
 
 **Status: preview 0.5.0** (Phases 1 and 2 done, Phase 3 automation added). See [PRODUCT.md](PRODUCT.md) for the plan and [FEATURES.md](FEATURES.md) for the full feature list.
 
@@ -71,7 +71,7 @@ An app you build yourself opens without the security warning.
 - **Hoverbox has no window or Dock icon.** It lives in the **menu bar** at the top right of your screen (a small box icon). Click it for New Shelf, your open and recently closed shelves, Pause Shake and Settings.
 - **Shake the pointer while you drag something** (a file in Finder, an image in a browser, some text) and a shelf appears under it. Drop, then drag things out wherever you need them. If shaking is hard, choose *Holding the pointer still* in **Settings → Opening**.
 - **Press ⌥⇧Space** (Option + Shift + Space) anywhere for a new shelf at the pointer.
-- **No permission prompts.** Hoverbox doesn't need Accessibility, Input Monitoring or Screen Recording, and never connects to the internet.
+- **No permission prompts.** Hoverbox doesn't need Accessibility, Input Monitoring or Screen Recording, and only goes online when you upload something, to storage you set up yourself.
 - **"Hoverbox" in the Share menu:** if it doesn't appear, turn it on in **System Settings → General → Login Items & Extensions → Sharing**.
 - **"Add to Hoverbox" in Finder's right-click menu** (under *Quick Actions* or *Services*): if it's missing, turn it on in **System Settings → Keyboard → Keyboard Shortcuts → Services → Files and Folders**. Its shortcut is ⇧⌘B.
 - **Start Hoverbox automatically:** Settings → General → *Open Hoverbox at login*.
@@ -118,6 +118,14 @@ Quit Hoverbox from its menu bar icon, replace **Hoverbox.app** in Applications w
 - **Menu bar:** new shelf, open shelves, close unpinned shelves, pause shake, Settings.
 - **Settings:** shelf background from glass to solid (live), shake on/off and sensitivity, hotkey, keep after drag-out, apps where shaking is ignored, launch at login.
 - **Links:** `open "hoverbox://new"` opens a shelf; `open "hoverbox://add?path=/path/to/file"` adds files to the newest shelf.
+
+## Uploads
+
+- **Upload & Copy Link** (shelf menu, the Upload drop target, `hoverbox run Upload`): sends files to **your own storage** and copies the link. Works with Amazon S3, Cloudflare R2, Backblaze B2, MinIO and other S3-compatible storage, and WebDAV (Nextcloud, many NAS boxes). Set them up in Settings › Uploads, with Test Connection.
+- Private buckets get links that expire after 1 hour, 1 day or 7 days; a public bucket or custom domain gives permanent links.
+- Keys and passwords are stored in your Keychain. The menu bar keeps your recent uploads: copy or open a link, or delete the file from the server.
+- There's no Hoverbox server. Files go straight from your Mac to your storage. (Dropbox and Google Drive are planned.)
+- Because the preview is signed for each Mac separately, macOS may ask to let Hoverbox use its Keychain item after an update; choose Always Allow.
 
 ## Automation
 

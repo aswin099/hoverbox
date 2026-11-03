@@ -28,7 +28,7 @@ final class ShelfController: NSObject, ObservableObject, Identifiable {
     private var shrinkWindow: DispatchWorkItem?
 
     let panel = ShelfPanel()
-    private weak var model: AppModel?
+    private(set) weak var model: AppModel?
     private var lastClicked: UUID?
 
     nonisolated var id: UUID { shelfID }

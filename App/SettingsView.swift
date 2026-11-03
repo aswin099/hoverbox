@@ -10,7 +10,7 @@ import UniformTypeIdentifiers
 @MainActor
 enum SettingsWindow {
     /// Every tab has this size, so the window stays still when you switch tabs.
-    static let size = CGSize(width: 640, height: 480)
+    static let size = CGSize(width: 720, height: 500)
 
     static func make() -> NSWindow {
         let tabs = NSTabViewController()
@@ -30,6 +30,7 @@ enum SettingsWindow {
         add("Shortcuts", "keyboard", ShortcutSettings())
         add("Shelves", "square.stack", ShelvesSettings())
         add("Actions", "wand.and.stars", ActionsSettings())
+        add("Uploads", "icloud.and.arrow.up", UploadsSettings())
         add("Favourites", "star", FavouritesSettings())
         add("Automatic", "bolt.badge.clock", AutomaticSettings())
         add("About", "info.circle", AboutSettings())
@@ -108,12 +109,12 @@ private struct GeneralSettings: View {
                     Label("None needed", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 }
                 LabeledContent("Network") {
-                    Label("Never used", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                    Label("Only when you upload", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
                 }
             } header: {
                 Text("Privacy")
             } footer: {
-                Text("Shelves hold references to your files, not copies. Nothing leaves your Mac unless you share or AirDrop it.")
+                Text("Shelves hold references to your files, not copies. Nothing leaves your Mac unless you share, AirDrop or upload it, and uploads only go to storage you set up in Settings › Uploads.")
                     .settingsFootnote()
             }
         }
@@ -505,6 +506,183 @@ private extension CustomAction.Step {
     }
 }
 
+// MARK: - Uploads
+
+@MainActor
+private struct UploadsSettings: View {
+    @State private var destinations = Prefs.uploadDestinations
+    @State private var selection: UUID?
+    @AppStorage(Prefs.defaultDestinationKey) private var defaultID = ""
+    @State private var secret = ""
+    @State private var testResult: (ok: Bool, text: String)?
+    @State private var testing = false
+
+    private var index: Int? { destinations.firstIndex { $0.id == selection } }
+    private var defaultDestinationID: UUID? { Prefs.defaultDestination?.id }
+
+    var body: some View {
+        Form {
+            Section {
+                if destinations.isEmpty {
+                    Text("Nowhere to upload to yet. Add your own storage to get Upload & Copy Link.")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                } else {
+                    List(destinations, selection: $selection) { destination in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(destination.name)
+                                Text(destination.kind.summary).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            if destination.id == defaultDestinationID && destinations.count > 1 {
+                                Text("Default").font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .frame(height: 100)
+                }
+                ListButtons(canRemove: selection != nil, remove: removeSelected) {
+                    Button("Amazon S3") {
+                        add("Amazon S3", .s3(S3Settings(endpoint: "https://s3.us-east-1.amazonaws.com", region: "us-east-1", bucket: "", accessKeyID: "")))
+                    }
+                    Button("Cloudflare R2") {
+                        add("Cloudflare R2", .s3(S3Settings(endpoint: "https://ACCOUNT-ID.r2.cloudflarestorage.com", region: "auto", bucket: "", accessKeyID: "")))
+                    }
+                    Button("Backblaze B2") {
+                        add("Backblaze B2", .s3(S3Settings(endpoint: "https://s3.us-west-004.backblazeb2.com", region: "us-west-004", bucket: "", accessKeyID: "")))
+                    }
+                    Button("Other S3-compatible (MinIO, Wasabi…)") {
+                        add("My Storage", .s3(S3Settings(endpoint: "https://", region: "us-east-1", bucket: "", accessKeyID: "")))
+                    }
+                    Divider()
+                    Button("WebDAV (Nextcloud, NAS…)") {
+                        add("WebDAV", .webDAV(WebDAVSettings(folderURL: "https://", username: "")))
+                    }
+                }
+            } header: {
+                Text("Where uploads go")
+            } footer: {
+                Text("Hoverbox only goes online when you upload, and only to the storage listed here. Keys and passwords are kept in your Keychain.")
+                    .settingsFootnote()
+            }
+
+            if let index {
+                Section {
+                    TextField("Name", text: $destinations[index].name)
+                    switch destinations[index].kind {
+                    case .s3:
+                        let s3 = s3Binding(index)
+                        TextField("Endpoint", text: s3.endpoint, prompt: Text("https://s3.example.com"))
+                        TextField("Region", text: s3.region, prompt: Text("us-east-1, or auto for R2"))
+                        TextField("Bucket", text: s3.bucket)
+                        TextField("Folder in the bucket", text: s3.prefix, prompt: Text("Optional"))
+                        TextField("Access key ID", text: s3.accessKeyID)
+                        SecureField("Secret access key", text: $secret)
+                        TextField("Public address", text: s3.publicBaseURL, prompt: Text("Optional, for public buckets or a custom domain"))
+                        if s3.wrappedValue.publicBaseURL.isEmpty {
+                            Picker("Links work for", selection: $destinations[index].linkLifetime) {
+                                Text("1 hour").tag(3600.0)
+                                Text("1 day").tag(86_400.0)
+                                Text("7 days (the most S3 allows)").tag(604_800.0)
+                            }
+                        }
+                    case .webDAV:
+                        let dav = webDAVBinding(index)
+                        TextField("Folder address", text: dav.folderURL, prompt: Text("https://cloud.example.com/remote.php/dav/files/me/Shared"))
+                        TextField("Username", text: dav.username)
+                        SecureField("Password", text: $secret)
+                        TextField("Public address", text: dav.publicBaseURL, prompt: Text("Optional, where the files can be read from"))
+                    }
+                    HStack {
+                        Button(testing ? "Testing…" : "Test Connection") { test(destinations[index]) }
+                            .disabled(testing)
+                        if destinations.count > 1 && destinations[index].id != defaultDestinationID {
+                            Button("Use as Default") { defaultID = destinations[index].id.uuidString }
+                        }
+                        Spacer()
+                    }
+                    if let testResult {
+                        Label(testResult.text, systemImage: testResult.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(testResult.ok ? Color.green : Color.orange)
+                            .font(.callout)
+                    }
+                } header: {
+                    Text("Settings")
+                } footer: {
+                    Text("Test Connection uploads a tiny text file and deletes it again. Private buckets get links that stop working after the time above; public buckets get permanent links.")
+                        .settingsFootnote()
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: SettingsWindow.size.width, height: SettingsWindow.size.height)
+        .onChange(of: destinations) { _, list in Prefs.uploadDestinations = list }
+        .onChange(of: selection) { _, id in
+            secret = id.flatMap(UploadSecrets.secret(for:)) ?? ""
+            testResult = nil
+        }
+        .onChange(of: secret) { _, value in
+            if let id = selection { UploadSecrets.setSecret(value, for: id) }
+        }
+    }
+
+    private func s3Binding(_ index: Int) -> Binding<S3Settings> {
+        Binding(get: {
+            if case .s3(let settings) = destinations[index].kind { return settings }
+            return S3Settings(endpoint: "", region: "", bucket: "", accessKeyID: "")
+        }, set: { destinations[index].kind = .s3($0) })
+    }
+
+    private func webDAVBinding(_ index: Int) -> Binding<WebDAVSettings> {
+        Binding(get: {
+            if case .webDAV(let settings) = destinations[index].kind { return settings }
+            return WebDAVSettings(folderURL: "", username: "")
+        }, set: { destinations[index].kind = .webDAV($0) })
+    }
+
+    private func add(_ name: String, _ kind: UploadDestination.Kind) {
+        let destination = UploadDestination(name: name, kind: kind)
+        destinations.append(destination)
+        selection = destination.id
+    }
+
+    private func removeSelected() {
+        guard let id = selection else { return }
+        UploadSecrets.setSecret("", for: id)
+        destinations.removeAll { $0.id == id }
+        selection = nil
+    }
+
+    private func test(_ destination: UploadDestination) {
+        testing = true
+        testResult = nil
+        Task.detached {
+            let result = Result { try Uploader.test(destination) }
+            await MainActor.run {
+                testing = false
+                switch result {
+                case .success: testResult = (true, "Connected: uploaded and removed a test file.")
+                case .failure(let error): testResult = (false, error.localizedDescription)
+                }
+            }
+        }
+    }
+}
+
+private extension UploadDestination.Kind {
+    var summary: String {
+        switch self {
+        case .s3(let settings):
+            let host = URL(string: settings.endpoint)?.host ?? settings.endpoint
+            return settings.bucket.isEmpty ? host : "\(settings.bucket) on \(host)"
+        case .webDAV(let settings):
+            return URL(string: settings.folderURL)?.host ?? "WebDAV"
+        }
+    }
+}
+
 // MARK: - Favourites
 
 @MainActor
@@ -630,7 +808,7 @@ private struct AboutSettings: View {
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
-            Text("A free, open-source drag-and-drop shelf.\nNo permissions, no network, no telemetry.")
+            Text("A free, open-source drag-and-drop shelf.\nNo permissions, no telemetry, online only to upload.")
                 .font(.system(size: 12))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)

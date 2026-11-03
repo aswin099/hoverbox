@@ -124,6 +124,25 @@ enum Prefs {
 
     static var shouldKeepAfterDragOut: Bool { UserDefaults.standard.bool(forKey: keepAfterDragOut) }
 
+    static let uploadDestinationsKey = "uploadDestinations"
+    static let defaultDestinationKey = "defaultUploadDestination"
+
+    /// The user's own storage (Settings › Uploads). Secrets are in the Keychain, not here.
+    static var uploadDestinations: [UploadDestination] {
+        get {
+            UserDefaults.standard.data(forKey: uploadDestinationsKey)
+                .flatMap { try? JSONDecoder().decode([UploadDestination].self, from: $0) } ?? []
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: uploadDestinationsKey) }
+    }
+
+    /// Where "Upload & Copy Link" sends files: the chosen default, else the first destination.
+    static var defaultDestination: UploadDestination? {
+        let all = uploadDestinations
+        let id = UserDefaults.standard.string(forKey: defaultDestinationKey).flatMap(UUID.init(uuidString:))
+        return all.first { $0.id == id } ?? all.first
+    }
+
     static let customActionsKey = "customActions"
 
     /// The user's own multi-step actions (Settings › Actions), stored as JSON.

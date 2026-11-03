@@ -34,7 +34,8 @@ Never include private files or real personal file paths in a report. Use made-up
 - Files changed, moved or deleted without the user asking (originals must never be touched except by Rename, Move To, or a move the user makes when dragging out)
 - Files or shelf contents readable by other users or apps (the shelf archive is written with 0600 permissions)
 - `hoverbox://` links or the Share extension being abused to read or move files
-- Any network traffic from Hoverbox itself (there should be none; sharing goes through macOS)
+- Network traffic from Hoverbox to anywhere other than the upload storage the user set up (there should be none; sharing goes through macOS)
+- Upload keys or passwords leaving the Keychain, being logged, or being sent to the wrong server
 - Hoverbox asking for permissions it doesn't need
 
 Out of scope: problems that need an attacker who already controls your user account, and issues in macOS, Windows or third-party apps themselves.

@@ -3,7 +3,12 @@ import HoverboxCore
 
 /// Actions that can be dropped onto while dragging over a shelf, without collecting first.
 enum InstantAction: CaseIterable, Identifiable {
-    case airDrop, share, zip, text
+    case airDrop, share, zip, text, upload
+
+    /// The ones to show: Upload only once the user has set up somewhere to upload to.
+    static var available: [InstantAction] {
+        allCases.filter { $0 != .upload || Prefs.defaultDestination != nil }
+    }
 
     var id: Self { self }
 
@@ -13,6 +18,7 @@ enum InstantAction: CaseIterable, Identifiable {
         case .share: return "Share"
         case .zip: return "ZIP"
         case .text: return "Text"
+        case .upload: return "Upload"
         }
     }
 
@@ -22,6 +28,7 @@ enum InstantAction: CaseIterable, Identifiable {
         case .share: return "square.and.arrow.up"
         case .zip: return "doc.zipper"
         case .text: return "text.viewfinder"
+        case .upload: return "icloud.and.arrow.up"
         }
     }
 
@@ -31,6 +38,7 @@ enum InstantAction: CaseIterable, Identifiable {
         case .share: return "Drop to share"
         case .zip: return "Drop to make a ZIP"
         case .text: return "Drop images or PDFs to copy their text"
+        case .upload: return "Drop to upload and copy the link"
         }
     }
 }
@@ -131,6 +139,20 @@ extension ShelfController {
             parent.submenu = submenu
             parent.isEnabled = !files.isEmpty
             menu.addItem(parent)
+        }
+        let destinations = Prefs.uploadDestinations
+        if let main = Prefs.defaultDestination {
+            menu.addItem(item("Upload & Copy Link", enabled: !files.isEmpty) { [weak self] in self?.upload(files, to: main) })
+            if destinations.count > 1 {
+                let parent = NSMenuItem(title: "Upload To", action: nil, keyEquivalent: "")
+                let submenu = NSMenu()
+                for destination in destinations {
+                    submenu.addItem(item(destination.name) { [weak self] in self?.upload(files, to: destination) })
+                }
+                parent.submenu = submenu
+                parent.isEnabled = !files.isEmpty
+                menu.addItem(parent)
+            }
         }
         menu.addItem(.separator())
         menu.addItem(item(files.isEmpty ? "Compress to ZIP" : "Compress \(count(files.count, "Item")) to ZIP",
@@ -343,10 +365,35 @@ extension ShelfController {
         }
     }
 
+    // MARK: Uploads
+
+    /// Uploads files to the user's own storage, copies the links, and puts them on the shelf.
+    func upload(_ files: [URL], to destination: UploadDestination) {
+        guard !files.isEmpty else {
+            showStatus("Only files can be uploaded", isError: true)
+            return
+        }
+        let box = UploadRecordsBox()
+        run("Uploading to \(destination.name)…") {
+            let records = try Uploader.upload(files, to: destination)
+            box.records = records
+            let links = records.map { ShelfItem.link($0.link) }
+            let what = records.count == 1 ? records[0].fileName : "\(records.count) files"
+            return (links, "Uploaded \(what). Link\(records.count == 1 ? "" : "s") copied")
+        } after: { [weak self] links in
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(links.compactMap { item -> String? in
+                if case .link(let url) = item.content { return url.absoluteString } else { return nil }
+            }.joined(separator: "\n"), forType: .string)
+            self?.model?.rememberUploads(box.records)
+        }
+    }
+
     // MARK: Your actions
 
     /// Built-in actions the command-line tool and Shortcuts can run by name.
-    static let builtInActionNames = ["ZIP", "Extract Text", "Compress Images", "Resize Images 50%", "AirDrop", "Share"]
+    static let builtInActionNames = ["ZIP", "Extract Text", "Compress Images", "Resize Images 50%", "AirDrop", "Share", "Upload"]
 
     /// Runs an action by name: one of the user's own actions, or a built-in one. On the selection
     /// (or everything) from the shelf itself; on everything from Terminal or Shortcuts, which
@@ -366,6 +413,12 @@ extension ShelfController {
         case "resize images 50%", "resize": resize(files.filter(ImageTool.isImage), to: .percent(50))
         case "airdrop": airDrop(targets)
         case "share": share(targets)
+        case "upload":
+            guard let destination = Prefs.defaultDestination else {
+                showStatus("Set up somewhere to upload to in Settings › Uploads", isError: true)
+                return true
+            }
+            upload(files, to: destination)
         default: return false
         }
         return true
@@ -425,6 +478,8 @@ extension ShelfController {
         case .share: share(items)
         case .zip:
             if files.isEmpty { showStatus("Only files can go in a ZIP", isError: true) } else { zip(files) }
+        case .upload:
+            if let destination = Prefs.defaultDestination { upload(files, to: destination) }
         case .text:
             let readable = files.filter(TextRecognizer.canRead)
             if readable.isEmpty { showStatus("Drop images or PDFs to read their text", isError: true) } else { extractText(readable) }
@@ -491,4 +546,8 @@ extension ShelfColor {
             return true
         }
     }
+}
+
+private final class UploadRecordsBox: @unchecked Sendable {
+    var records: [UploadRecord] = []
 }

@@ -3,7 +3,7 @@
 Thanks for helping. A few ground rules:
 
 1. **Original work only.** Do not copy code, assets or wording from Dropover, Yoink or any other app, and do not reverse-engineer or redistribute paid binaries. Describe behaviour from public documentation or normal use.
-2. **No permissions, no network.** Hoverbox must keep working with no Accessibility, Input Monitoring or Screen Recording permission, and must never make network calls of its own.
+2. **No permissions, no network of its own.** Hoverbox must keep working with no Accessibility, Input Monitoring or Screen Recording permission. The only network code is the uploader, and it only talks to storage the user set up; never add analytics, update pings or other calls.
 3. **Never touch originals.** Actions write new files; only Rename, Move To and the user's own drags may change an original.
 4. **Test the core.** Logic that does not need AppKit goes in `Packages/HoverboxCore/Sources/HoverboxCore` with tests in `Packages/HoverboxCore/Tests/HoverboxCoreTests`. Run `swift test --package-path Packages/HoverboxCore` before opening a PR.
 5. **Follow DESIGN.md** for UI changes: check light and dark mode, Reduce Motion, VoiceOver labels and keyboard use.

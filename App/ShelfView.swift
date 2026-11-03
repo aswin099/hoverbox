@@ -595,7 +595,7 @@ struct InstantActionStrip: View {
         let favourites = Array(Favourite.all.prefix(compact ? 4 : 6))
         VStack(spacing: compact ? 4 : 6) {
             HStack(spacing: compact ? 4 : 6) {
-                ForEach(InstantAction.allCases) { action in
+                ForEach(InstantAction.available) { action in
                     zone(id: action.title, help: action.help, onDrop: { controller.runInstant(action, on: $0) }) { hovered in
                         VStack(spacing: 3) {
                             Image(systemName: action.symbol).font(.system(size: 15, weight: .medium))
