@@ -21,7 +21,7 @@ Status on 2026-10-29: everything that can be prepared locally is ready. The step
 For B, add five repository secrets (`DEVELOPER_ID_P12`, `DEVELOPER_ID_P12_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_PASSWORD`). The release workflow already signs, notarizes and staples when they exist, and falls back to A when they don't. "Inc." in the seller name needs a registered company and a D-U-N-S number; as an individual the seller name is your own.
 
 ## 4. Distribution
-1. **GitHub Releases** (ready): `git tag v0.4.0 && git push origin v0.4.0` builds `Hoverbox-macOS.zip` and a draft release. Review it, then Publish.
+1. **GitHub Releases** (ready): `git tag v0.4.0 && git push origin v0.4.0` builds `Hoverbox-macOS.dmg` (the installer window) and `Hoverbox-macOS.zip`, and a draft release. Review it, then Publish.
 2. **Homebrew cask** (after the first notarized release): a `hoverbox` cask pointing at the release zip.
 3. **Updates**: add Sparkle with an appcast on GitHub Pages once releases are signed (it needs a signing key and a stable download URL).
 4. **Mac App Store** (later, optional): needs the App Sandbox. Known work: security-scoped bookmarks for shelf items, replacing the `ditto` process for ZIP, and checking that the global mouse monitor and drag pasteboard still work sandboxed.

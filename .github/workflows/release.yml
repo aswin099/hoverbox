@@ -89,6 +89,30 @@ jobs:
       - name: Zip
         run: ditto -c -k --keepParent build/Build/Products/Release/Hoverbox.app Hoverbox-macOS.zip
 
+      # The .dmg opens a styled window where you drag Hoverbox into Applications.
+      - name: Make the installer (.dmg)
+        run: |
+          if [ "$SIGNED" = "true" ]; then flag=--signed; else flag=; fi
+          swift tools/dmg/render-background.swift build/dmg $flag
+          tiffutil -cathidpicheck build/dmg/background.png build/dmg/background@2x.png -out build/dmg/background.tiff
+          python3 -m venv build/venv
+          build/venv/bin/pip install --quiet dmgbuild==1.6.7
+          build/venv/bin/dmgbuild -s tools/dmg/settings.py \
+            -D app=build/Build/Products/Release/Hoverbox.app -D background=build/dmg/background.tiff \
+            Hoverbox Hoverbox-macOS.dmg
+
+      - name: Sign and notarize the installer
+        if: env.SIGNED == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          codesign --timestamp --sign "Developer ID Application" Hoverbox-macOS.dmg
+          xcrun notarytool submit Hoverbox-macOS.dmg --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple Hoverbox-macOS.dmg
+
       - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -96,4 +120,4 @@ jobs:
           prerelease=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then prerelease="--prerelease"; fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft $prerelease \
-            --title "Hoverbox $GITHUB_REF_NAME" --generate-notes Hoverbox-macOS.zip
+            --title "Hoverbox $GITHUB_REF_NAME" --generate-notes Hoverbox-macOS.dmg Hoverbox-macOS.zip

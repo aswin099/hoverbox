@@ -29,8 +29,8 @@ You need **macOS 14 Sonoma or later** (Apple silicon or Intel). There are two wa
 
 ### Option 1: Download the app (easiest)
 
-1. Open the [Releases page](https://github.com/aswin099/hoverbox/releases/latest) and download **`Hoverbox-macOS.zip`** from the latest release.
-2. Unzip it and drag **Hoverbox.app** into your **Applications** folder.
+1. Open the [Releases page](https://github.com/aswin099/hoverbox/releases/latest) and download **`Hoverbox-macOS.dmg`** from the latest release.
+2. Open it, drag **Hoverbox** onto **Applications** in the window that appears, then eject the Hoverbox disk in Finder. (`Hoverbox-macOS.zip` has the same app if you'd rather unzip it.)
 3. Open Hoverbox. Because the preview isn't signed by Apple yet, macOS shows *"Apple could not verify Hoverbox is free of malware"*. Click **Done** (not Move to Trash).
 4. Open **System Settings → Privacy & Security**, scroll down to the message about Hoverbox and click **Open Anyway**. Confirm with your password or Touch ID.
 5. Open Hoverbox again. You only need to do steps 3–5 once per version.
