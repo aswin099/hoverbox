@@ -139,8 +139,11 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSWindowDelegate {
 
     func showSettings() {
         if settingsWindow == nil { settingsWindow = SettingsWindow.make() }
-        NSApp.activate(ignoringOtherApps: true)
+        // Hoverbox has no Dock icon, and macOS 14+ may not activate it on request, so
+        // also order the window front directly; otherwise it can open behind other apps.
+        NSApp.activate()
         settingsWindow?.makeKeyAndOrderFront(nil)
+        settingsWindow?.orderFrontRegardless()
     }
 
     // MARK: Dropping onto the icon

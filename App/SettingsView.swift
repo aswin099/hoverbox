@@ -793,8 +793,7 @@ private struct AboutSettings: View {
     private var version: String {
         let info = Bundle.main.infoDictionary
         let short = info?["CFBundleShortVersionString"] as? String ?? "–"
-        let build = info?["CFBundleVersion"] as? String ?? "–"
-        return "Version \(short) (\(build))"
+        return "Version \(short)"
     }
 
     var body: some View {
