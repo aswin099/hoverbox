@@ -72,7 +72,9 @@ struct ShelfView: View {
         .coordinateSpace(name: ShelfView.space)
         .onPreferenceChange(RowFramesKey.self) { controller.rowFrames = $0 }
         // Glass at 0, solid at 1 (Settings ▸ Look).
-        .background(ShelfBackground(solidity: backgroundOpacity).clipShape(shape))
+        .background(ShelfBackground(solidity: backgroundOpacity, cornerRadius: 22).clipShape(shape))
+        // A lit top edge and a faint sheen, like light catching glass; both fade as the shelf turns solid.
+        .overlay(GlassHighlights(shape: shape, strength: 1 - backgroundOpacity).allowsHitTesting(false))
         .overlay(
             shape.strokeBorder(controller.isDropTargeted ? accent : Color.primary.opacity(0.14),
                                lineWidth: controller.isDropTargeted ? 2 : 0.5)
@@ -89,6 +91,34 @@ struct ShelfView: View {
 
     private func fade(_ duration: Double, delay: Double = 0) -> Animation? {
         reduceMotion ? nil : .easeOut(duration: duration).delay(delay)
+    }
+}
+
+/// The glass look drawn over the backdrop: a bright rim along the top that fades down the
+/// sides, and a soft sheen across the upper part of the card.
+struct GlassHighlights: View {
+    let shape: RoundedRectangle
+    /// 1 on clear glass, 0 on a solid shelf.
+    let strength: Double
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        // The system glass (macOS 26+) lights its own edge, so the rim here stays faint.
+        let rim = (ShelfBackground.usesSystemGlass ? 0.18 : 0.42) * (0.35 + 0.65 * strength)
+        let sheen = (colorScheme == .dark ? 0.07 : 0.16) * strength
+        ZStack {
+            shape.fill(LinearGradient(stops: [.init(color: .white.opacity(sheen), location: 0),
+                                              .init(color: .white.opacity(0), location: 0.45)],
+                                      startPoint: .top, endPoint: .bottom))
+            shape.strokeBorder(LinearGradient(stops: [.init(color: .white.opacity(rim), location: 0),
+                                                      .init(color: .white.opacity(rim * 0.25), location: 0.35),
+                                                      .init(color: .white.opacity(0), location: 0.7),
+                                                      .init(color: .white.opacity(rim * 0.3), location: 1)],
+                                              startPoint: .top, endPoint: .bottom),
+                               lineWidth: 1)
+                .padding(0.5)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -132,19 +162,34 @@ struct CircleButton: View {
     let symbol: String
     let label: String
     let action: () -> Void
+    @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(isHovered ? Color.primary : Color.secondary)
                 .frame(width: 30, height: 30)
-                .background(Color.primary.opacity(0.08), in: Circle())
+                .background(Color.primary.opacity(isHovered ? 0.16 : 0.08), in: Circle())
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovered)
         .help(label)
         .accessibilityLabel(label)
+    }
+}
+
+/// Buttons dip slightly while pressed, so a click is felt before anything happens.
+struct PressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.93 : 1)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -153,6 +198,7 @@ struct CircleButton: View {
 struct CompactShelf: View {
     @ObservedObject var controller: ShelfController
     @Environment(\.shelfAccent) private var shelfAccent
+    @State private var pillHovered = false
     private var shelf: Shelf { controller.shelf }
 
     var body: some View {
@@ -259,10 +305,12 @@ struct CompactShelf: View {
             .padding(.horizontal, 14)
             .frame(height: 32)
             .frame(maxWidth: 176)
-            .background(Color.primary.opacity(0.08), in: Capsule())
+            .background(Color.primary.opacity(pillHovered ? 0.15 : 0.08), in: Capsule())
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .onHover { pillHovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: pillHovered)
         .help("Show every item")
     }
 }
@@ -321,7 +369,7 @@ struct ExpandedShelf: View {
                         .background(selected ? Color.primary.opacity(0.12) : .clear, in: Capsule())
                         .contentShape(Capsule())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableStyle())
                 .help(option == .grid ? "Show as grid" : "Show as list")
                 .accessibilityLabel(option == .grid ? "Grid" : "List")
                 .accessibilityAddTraits(selected ? .isSelected : [])
@@ -381,6 +429,9 @@ struct ExpandedShelf: View {
             if let status = controller.status {
                 Text(status.text)
                     .foregroundStyle(status.isError ? Color.orange : Color.secondary)
+            } else if !controller.selection.isEmpty {
+                Text("\(controller.selection.count) of \(shelf.items.count) selected · Drag out · Space to preview · ⌫ to remove")
+                    .foregroundStyle(.secondary)
             } else {
                 Text("Drag items out · Space to preview · ⌫ to remove").foregroundStyle(.tertiary)
             }
@@ -398,9 +449,14 @@ struct ExpandedShelf: View {
 struct DraggableItem: ViewModifier {
     let controller: ShelfController
     let item: ShelfItem
+    @State private var isHovered = false
 
     func body(content: Content) -> some View {
         content
+            // Drawn behind the item's own selection highlight.
+            .background(Color.primary.opacity(isHovered ? 0.06 : 0),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .onHover { isHovered = $0 }
             .background(GeometryReader { proxy in
                 Color.clear.preference(key: RowFramesKey.self, value: [item.id: proxy.frame(in: .named(ShelfView.space))])
             })
@@ -555,6 +611,8 @@ struct ItemIcon: View {
                 Image(nsImage: thumbnail ?? NSWorkspace.shared.icon(forFile: url.path))
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    // Real thumbnails get soft corners; Finder icons keep their own shape.
+                    .clipShape(RoundedRectangle(cornerRadius: thumbnail == nil ? 0 : max(2, size * 0.06), style: .continuous))
                     .task(id: url) { thumbnail = await Self.thumbnail(for: url, size: size) }
             case .link:
                 symbol("link")

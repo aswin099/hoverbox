@@ -543,6 +543,7 @@ final class AppModel: ObservableObject {
         if let expand = query["expand"] { shelf.setExpanded(expand == "1") }
         if let layout = query["layout"].flatMap(ShelfLayout.init(rawValue:)) { shelf.setLayout(layout) }
         if let target = query["target"] { shelf.isDropTargeted = target == "1" }
+        if let count = query["select"].flatMap(Int.init) { shelf.selection = Set(shelf.shelf.items.prefix(count).map(\.id)) }
         if let color = query["color"] { shelf.setColor(ShelfColor(rawValue: color)) }
         if let dock = query["dock"] {
             if dock == "off" { shelf.undock() } else if let screen = shelf.panel.screen ?? NSScreen.main {

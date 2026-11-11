@@ -134,15 +134,29 @@ enum DockEdge {
 struct ShelfBackground: NSViewRepresentable {
     /// 0 is clear glass, 1 is solid.
     var solidity: Double
+    /// Rounding for the system glass (macOS 26+), which draws its own lit edge. 0 leaves the shape to the caller's clip.
+    var cornerRadius: CGFloat = 0
+
+    /// Whether the system's Liquid Glass is drawn (macOS 26 and later); older systems get a blur.
+    static var usesSystemGlass: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
 
     func makeNSView(context: Context) -> NSView {
         let container = NSView()
-        let blur = NSVisualEffectView()
-        blur.material = .popover
-        blur.blendingMode = .behindWindow
-        blur.state = .active
-        blur.autoresizingMask = [.width, .height]
-        container.addSubview(blur)
+        let backdrop: NSView
+        if #available(macOS 26.0, *) {
+            backdrop = NSGlassEffectView()
+        } else {
+            let blur = NSVisualEffectView()
+            blur.material = .popover
+            blur.blendingMode = .behindWindow
+            blur.state = .active
+            backdrop = blur
+        }
+        backdrop.autoresizingMask = [.width, .height]
+        container.addSubview(backdrop)
         let tint = NSView()
         tint.wantsLayer = true
         tint.autoresizingMask = [.width, .height]
@@ -152,13 +166,22 @@ struct ShelfBackground: NSViewRepresentable {
 
     func updateNSView(_ container: NSView, context: Context) {
         guard container.subviews.count == 2 else { return }
-        let blur = container.subviews[0], tint = container.subviews[1]
-        blur.frame = container.bounds
+        let backdrop = container.subviews[0], tint = container.subviews[1]
+        backdrop.frame = container.bounds
         tint.frame = container.bounds
-        // Glass keeps a faint blur so text stays readable; solid ends at the plain window colour.
-        blur.alphaValue = 0.45 + 0.55 * solidity
+        var tintStrength = solidity * 0.92
+        if #available(macOS 26.0, *), let glass = backdrop as? NSGlassEffectView {
+            // Clear glass at the far end of the slider, frosted glass through the middle.
+            glass.style = solidity < 0.2 ? .clear : .regular
+            glass.cornerRadius = cornerRadius
+            // Frosted glass is already fairly opaque, so the tint comes in later.
+            tintStrength = max(0, solidity - 0.35) / 0.65 * 0.92
+        } else {
+            // Glass keeps a faint blur so text stays readable; solid ends at the plain window colour.
+            backdrop.alphaValue = 0.45 + 0.55 * solidity
+        }
         container.effectiveAppearance.performAsCurrentDrawingAppearance {
-            tint.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(solidity * 0.92).cgColor
+            tint.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(tintStrength).cgColor
         }
     }
 }
